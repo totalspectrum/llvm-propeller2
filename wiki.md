@@ -19,3 +19,8 @@ The goal of this project is to write an LLVM backend to generate code for the Pr
 1. add support for starting cogs at specific memory location (with the same startup code as above)
 1. expand on the rest of the propeller instruction set
 1. port the necessary functions from the c standard library to make c/c++ useful.
+
+The high level of how this will work: 
+1. use clang to compile c/c++ source into LLVM's IR language. Eventually any LLVM front end should work
+1. use the custom backend (the goal of this project, based probably on the MIPS target) will convert the LLVM IR code to PASM. 
+1. use fastspin (or whatever Parallax's official assembler will be) to compile the assembly code into an executable elf to load
