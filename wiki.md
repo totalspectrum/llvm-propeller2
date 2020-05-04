@@ -15,6 +15,7 @@ The goal of this project is to write an LLVM backend to generate code for the Pr
 1. edit this machine to support basic use of special registers (OUTx, DIRx, and INx)
 1. edit this machine to add some basic startup code to start the cog and execute a blinking LED program
 1. add more propeller instructions to support branching
+1. implement calling conventions to call functions (especially recursion)
 1. add support for starting cogs at specific memory location (with the same startup code as above)
 1. expand on the rest of the propeller instruction set
 1. port the necessary functions from the c standard library to make c/c++ useful.
