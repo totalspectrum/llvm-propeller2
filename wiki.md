@@ -2,15 +2,16 @@
 
 The goal of this project is to write an LLVM backend to generate code for the Propeller 2 microcontroller. Need to do the following things from a high level:
 
-1. figure out how to add a new target machine in the LLVM environment
+1. ~~figure out how to add a new target machine in the LLVM environment~~
     - https://llvm.org/docs/WritingAnLLVMBackend.html#preliminaries seems to have some starting points
-1. edit this machine to translate the LLVM IR format into no-ops
+1. define a register format to use the COG memory register space, cache
+1. edit this machine to translate a basic program that is just main returning a constant.
+    - minimum requires defining out the calling convention, load, store, and ret instruction lowering.
     - the same page as above should get us there.
     - some other resources:
         - https://jonathan2251.github.io/lbd/llvmstructure.html
         - http://llvm.org/devmtg/2009-10/Korobeynikov_BackendTutorial.pdf
         - https://llvm.org/devmtg/2014-04/PDFs/Talks/Building%20an%20LLVM%20backend.pdf
-1. define a register format to use the COG memory register space, cache
 1. edit this machine to generate PASM code for basic ALU operations
 1. edit this machine to support basic use of special registers (OUTx, DIRx, and INx)
 1. edit this machine to add some basic startup code to start the cog and execute a blinking LED program
