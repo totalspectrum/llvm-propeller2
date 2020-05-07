@@ -27,12 +27,12 @@ The high level of how this will work:
 1. use fastspin (or whatever Parallax's official assembler will be) to compile the assembly code into an executable elf to load. Eventually should be able to compile the PASM to and elf/binary directly from LLVM
 
 ## Cog Layout
-The simplest way to make LLVM compatible with propeller is to divide the cog memory into various sections for various compiler features. The section defines that layout.
+The simplest way to make LLVM compatible with propeller is to divide the cog memory into various sections for various compiler features. This section defines that layout.
 
 ### Register Definition
 Cog memory is 512 longs. The last 16 are special registers (0x1f0 - 0x1ff, so we will use the previous 16 registers (0x1e1 - 0x1ef) as general purpose registers for the compiler. So r0 = 0x1e0, r1 = 0x1e1, etc. We'll probably also need a stack pointer and maybe a link register. We'll deal with this later. 
 
-### Stack,
+### Stack
 We'll need a stack for calling functions, etc. This will be the previous 256 longs will be a fixed stack for calls and such. Eventually maybe there should be a way to use the LUT RAM for stack space to not use up cog RAM. So, the stack starts at 0x1df and grows down to 0x0e0.
 
 The remaining 224 longs of cog RAM should be used as a cache for loops, etc. Eventually, there should be a way to specify a function or variable to be cached in cog RAM so it never needs to be fetched. 
@@ -46,4 +46,4 @@ For starters, we will use a simple calling convention using the above registers 
 - remaining arguments are passed via the stack
 
 ### Return Value
-Functions will return values using r15.
+- Functions will return values using r15.
