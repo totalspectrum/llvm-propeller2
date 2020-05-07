@@ -30,10 +30,10 @@ The high level of how this will work:
 The simplest way to make LLVM compatible with propeller is to divide the cog memory into various sections for various compiler features. This section defines that layout.
 
 ### Register Definition
-Cog memory is 512 longs. The last 16 are special registers (0x1f0 - 0x1ff, so we will use the previous 16 registers (0x1e1 - 0x1ef) as general purpose registers for the compiler. So r0 = 0x1e0, r1 = 0x1e1, etc. We'll probably also need a stack pointer and maybe a link register. We'll deal with this later. 
+Cog memory is 512 longs. The last 16 are special registers (0x1f0 - 0x1ff, so we will use the previous 16 registers (0x1e0 - 0x1ef) as general purpose registers for the compiler. So r0 = 0x1e0, r1 = 0x1e1, etc. We'll probably also need a stack pointer and maybe a link register. We'll deal with this later. 2 more registers will be reserved for this.
 
 ### Stack
-We'll need a stack for calling functions, etc. This will be the previous 256 longs will be a fixed stack for calls and such. Eventually maybe there should be a way to use the LUT RAM for stack space to not use up cog RAM. So, the stack starts at 0x1df and grows down to 0x0e0.
+We'll need a stack for calling functions, etc. This will be the previous 256 longs will be a fixed stack for calls and such. Eventually maybe there should be a way to use the LUT RAM for stack space to not use up cog RAM. So, the stack starts at 0x1dd and grows down to 0x0de.
 
 The remaining 224 longs of cog RAM should be used as a cache for loops, etc. Eventually, there should be a way to specify a function or variable to be cached in cog RAM so it never needs to be fetched. 
 
