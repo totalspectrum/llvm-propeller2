@@ -13,7 +13,7 @@ def CC_P2 : CallingConv<[
     // Promote i8/i16 arguments to i32
     CCIfType<[i8, i16], CCPromoteToType<i32>>,
     // The first 4 arguments are passed in registers
-    CCIfType<[i32], CCAssignToReg<[R12, R13, R14, R15]>>,
+    CCIfType<[i32], CCAssignToReg<[R0, R1, R2, R3]>>,
 
     // Fall-back, and use the stack, stack is 4 bytes wide and byte aligned.
     CCIfType<[i32], CCAssignToStack<4, 1>>

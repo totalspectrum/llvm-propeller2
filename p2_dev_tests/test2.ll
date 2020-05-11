@@ -24,4 +24,4 @@ attributes #0 = { noinline norecurse nounwind optnone "correctly-rounded-divide-
 !llvm.ident = !{!1}
 
 !0 = !{i32 1, !"wchar_size", i32 4}
-!1 = !{!"clang version 11.0.0 (https://github.com/ne75/llvm-propeller2.git 1e3fd7a4ad4ef8a5cbde982352465ec3c3eb6559)"}
+!1 = !{!"clang version 11.0.0 (https://github.com/ne75/llvm-propeller2.git aaba0dffe450b726d5cbbfa4106ca0ada6607041)"}

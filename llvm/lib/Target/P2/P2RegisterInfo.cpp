@@ -68,28 +68,28 @@ P2RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
 
     int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
     uint64_t stackSize = MFI.getStackSize();
-    int64_t offset = MFI.getObjectOffset(FrameIndex);
+    int64_t offset = -MFI.getObjectOffset(FrameIndex) - 4; // negative to offset down, - an extra 4 since we will write up. kind of confusing but it works
+    int64_t fi_offset = MI.getOperand(FIOperandNum+1).getImm();
 
     offset += MFI.getStackSize() - TFI->getOffsetOfLocalArea(); // LOA should be 0 for P2
-    offset -= MI.getOperand(FIOperandNum+1).getImm(); // offset down. so each index is from the top of the current frame moving down the RAM
+    offset += MI.getOperand(FIOperandNum+1).getImm();;
 
     MI.setDesc(inst_info.get(P2::MOVrr)); // change our psesudo instruction to a mov
     MI.getOperand(FIOperandNum).ChangeToRegister(P2::SP, false); // change the abstract frame index register to our real frame pointer register
     MI.RemoveOperand(2); // remove the 3rd operand this instruction
 
-    assert(offset > 0 && "Invalid offset"); // offset should be positive
+    assert(offset >= 0 && "Invalid offset"); // offset should be positive or 0
 
     Register dst_reg = MI.getOperand(0).getReg();
     II++; // skip forward by 1 instruction
 
-    MachineInstr *mov_inst = BuildMI(*MI.getParent(), II, dl, inst_info.get(P2::ADDri), dst_reg)
+    BuildMI(*MI.getParent(), II, dl, inst_info.get(P2::ADDri), dst_reg)
                             .addReg(dst_reg, RegState::Kill)
                             .addImm(offset);
-    //mov_inst->getOperand(3).setIsDead();
 
     LLVM_DEBUG(errs() << "FrameIndex : " << FrameIndex << "\n"
                         << "stackSize  : " << stackSize << "\n");
-    LLVM_DEBUG(errs() << MI);
+    //LLVM_DEBUG(errs() << MI);
     LLVM_DEBUG(errs() << "Offset     : " << offset << "\n" << "<--------->\n");
 
 }
