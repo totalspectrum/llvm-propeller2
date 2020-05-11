@@ -40,7 +40,7 @@ using namespace llvm;
 const char *P2TargetLowering::getTargetNodeName(unsigned Opcode) const {
 
     switch (Opcode) {
-        case P2ISD::RET_FLAG: return "RET_FLAG";
+        case P2ISD::RET: return "P2RET";
         default:
             return nullptr;
     }
@@ -73,5 +73,5 @@ SDValue P2TargetLowering::LowerReturn(SDValue Chain,
                                         const SmallVectorImpl<ISD::OutputArg> &Outs,
                                         const SmallVectorImpl<SDValue> &OutVals,
                                         const SDLoc &DL, SelectionDAG &DAG) const {
-    return DAG.getNode(P2ISD::RET_FLAG, DL, MVT::Other, Chain, DAG.getRegister(P2::R15, MVT::i32));
+    return DAG.getNode(P2ISD::RET, DL, MVT::Other, Chain, DAG.getRegister(P2::R15, MVT::i32));
 }

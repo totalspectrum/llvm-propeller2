@@ -1,7 +1,7 @@
 /* compilation:
-    ~/Github/llvm-propeller2/build/bin/clang -target mips-unknown-linux-gnu -S -c test2.cpp -emit-llvm -o test2.ll
-    ~/Github/llvm-propeller2/build/bin/llc -march=p2 -filetype=asm test2.bc -o test2.s
-    ~/Github/llvm-propeller2/build/bin/llc -march=p2 -filetype=obj test2.bc -o test2.o
+    ../build/bin/clang -target p2 -S -c test2.cpp -emit-llvm -o test2.ll
+    ../build/bin/llc -march=p2 -filetype=asm test2.ll -o test2.s
+    ../build/bin/llc -march=p2 -filetype=obj test2.ll -o test2.o
 */
 
 int main() {

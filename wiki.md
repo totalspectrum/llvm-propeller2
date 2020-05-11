@@ -22,19 +22,20 @@ The goal of this project is to write an LLVM backend to generate code for the Pr
 1. create clang extensions for special directives and being able to write directly to I/O regsiters, etc.
 1. port the necessary functions from the c standard library to make c/c++ useful.
 
-The high level of how this will work: 
+The high level of how this will work:
 1. use clang to compile c/c++ source into LLVM's IR language. Eventually any LLVM front end should work
-1. use the custom backend (the goal of this project, using MIPS, AVR, and ARC targets as references) will convert the LLVM IR code to PASM. 
+1. use the custom backend (the goal of this project, using MIPS, AVR, and ARC targets as references) will convert the LLVM IR code to PASM.
 1. use fastspin (or whatever Parallax's official assembler will be) to compile the assembly code into an executable elf to load. Eventually should be able to compile the PASM to and elf/binary directly from LLVM
 
 ## Getting Started
-See README.md, with the following notes: 
+See README.md, with the following notes:
 - when running `cmake`, run `cmake -G "Unix Makefiles" -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=P2 ../llvm`
 - building for the first time will take quite a bit of time, ~20 min.
 - to run one of the examples in p2_dev_tests, run in two steps (from p2_dev_tests/)
-    - `../build/bin/clang -target mips-unknown-linux-gnu -S -c <file>.cpp -emit-llvm -o <file>.ll` (Eventually need to create a P2 target in clang). This compiles C down to LLVM IR language. 
+    - `../build/bin/clang -target mips-unknown-linux-gnu -S -c <file>.cpp -emit-llvm -o <file>.ll` (Eventually need to create a P2 target in clang). This compiles C down to LLVM IR language.
     - `../build/bin/llc -march=p2 -debug -filetype=asm <file>.ll -o test2.s`. This will output an assembly file with P2 instructions. There's still work to be done to clean it up into something compilable with fastspin. Eventually should be able to compile PASM directly to objects to remove the need for fastspin entirely.
 - The presentation by Anton Korobeynikov above gives a pretty high level but informative overview of how a backend works and the various components. This along with the other documents linked above help form a complete picture of how stuff works.
+- This has all the definitions for instruction info creation: https://github.com/llvm-mirror/llvm/blob/master/include/llvm/Target/TargetSelectionDAG.td
 
 ## Cog Layout
 The simplest way to make LLVM compatible with propeller is to divide the cog memory into various sections for various compiler features. This section defines that layout.

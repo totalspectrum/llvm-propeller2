@@ -26,15 +26,15 @@ namespace llvm {
 
     namespace P2ISD {
 
-    /// AVR Specific DAG Nodes
-    enum NodeType {
-        /// Start the numbering where the builtin ops leave off.
-        FIRST_NUMBER = ISD::BUILTIN_OP_END,
-        /// Return from subroutine.
-        RET_FLAG,
-    };
+        /// P2 Specific DAG Nodes
+        enum NodeType {
+            /// Start the numbering where the builtin ops leave off.
+            FIRST_NUMBER = ISD::BUILTIN_OP_END,
+            /// Return from subroutine.
+            RET,
+        };
 
-} // end of namespace P2ISD
+    } // end of namespace P2ISD
 
 
     //===--------------------------------------------------------------------===//
