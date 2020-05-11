@@ -4,13 +4,13 @@ The goal of this project is to write an LLVM backend to generate code for the Pr
 
 1. ~~figure out how to add a new target machine in the LLVM environment~~
     - https://llvm.org/docs/WritingAnLLVMBackend.html#preliminaries seems to have some starting points
-1. define a register format to use the COG memory register space
+1. ~~define a register format to use the COG memory register space~~ (see below)
 1. edit this machine to translate a basic program that is just main returning a constant.
     - minimum requires defining out the calling convention, load, store, and ret instruction lowering.
     - the same page as above should get us there.
-    - some other resources:
+    - some great resources (though on opposite ends of the spectrum of sparse and dense):
         - https://jonathan2251.github.io/lbd/llvmstructure.html
-        - http://llvm.org/devmtg/2009-10/Korobeynikov_BackendTutorial.pdf
+        - https://llvm.org/devmtg/2012-04-12/Slides/Workshops/Anton_Korobeynikov.pdf
         - https://llvm.org/devmtg/2014-04/PDFs/Talks/Building%20an%20LLVM%20backend.pdf
 1. edit this machine to generate PASM code for basic ALU operations
 1. edit this machine to support basic use of special registers (OUTx, DIRx, and INx)
@@ -19,12 +19,22 @@ The goal of this project is to write an LLVM backend to generate code for the Pr
 1. implement calling conventions to call functions (especially recursion)
 1. add support for starting cogs at specific memory location (with the same startup code as above)
 1. expand on the rest of the propeller instruction set
+1. create clang extensions for special directives and being able to write directly to I/O regsiters, etc.
 1. port the necessary functions from the c standard library to make c/c++ useful.
 
 The high level of how this will work: 
 1. use clang to compile c/c++ source into LLVM's IR language. Eventually any LLVM front end should work
 1. use the custom backend (the goal of this project, using MIPS, AVR, and ARC targets as references) will convert the LLVM IR code to PASM. 
 1. use fastspin (or whatever Parallax's official assembler will be) to compile the assembly code into an executable elf to load. Eventually should be able to compile the PASM to and elf/binary directly from LLVM
+
+## Getting Started
+See README.md, with the following notes: 
+- when running `cmake`, run `cmake -G "Unix Makefiles" -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=P2 ../llvm`
+- building for the first time will take quite a bit of time, ~20 min.
+- to run one of the examples in p2_dev_tests, run in two steps (from p2_dev_tests/)
+    - `../build/bin/clang -target mips-unknown-linux-gnu -S -c <file>.cpp -emit-llvm -o <file>.ll` (Eventually need to create a P2 target in clang). This compiles C down to LLVM IR language. 
+    - `../build/bin/llc -march=p2 -debug -filetype=asm <file>.ll -o test2.s`. This will output an assembly file with P2 instructions. There's still work to be done to clean it up into something compilable with fastspin. Eventually should be able to compile PASM directly to objects to remove the need for fastspin entirely.
+- The presentation by Anton Korobeynikov above gives a pretty high level but informative overview of how a backend works and the various components. This along with the other documents linked above help form a complete picture of how stuff works.
 
 ## Cog Layout
 The simplest way to make LLVM compatible with propeller is to divide the cog memory into various sections for various compiler features. This section defines that layout.
