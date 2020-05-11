@@ -40,20 +40,19 @@ See README.md, with the following notes:
 The simplest way to make LLVM compatible with propeller is to divide the cog memory into various sections for various compiler features. This section defines that layout.
 
 ### Register Definition
-Cog memory is 512 longs. The last 16 are special registers (0x1f0 - 0x1ff, so we will use the previous 16 registers (0x1e0 - 0x1ef) as general purpose registers for the compiler. So r0 = 0x1e0, r1 = 0x1e1, etc. We'll probably also need a stack pointer and maybe a link register. We'll deal with this later. 2 more registers will be reserved for this.
+Cog memory is 512 longs. The last 16 are special registers (0x1f0 - 0x1ff, so we will use the previous 16 registers (0x1e0 - 0x1ef) as general purpose registers for the compiler. So r0 = 0x1e0, r1 = 0x1e1, etc. We'll also need a stack pointer and maybe a link register. We'll deal with this later. 2 more registers will be reserved for this.
 
 ### Stack
-We'll need a stack for calling functions, etc. This will be the previous 256 longs will be a fixed stack for calls and such. Eventually maybe there should be a way to use the LUT RAM for stack space to not use up cog RAM. So, the stack starts at 0x1dd and grows down to 0x0de.
+We'll need a stack for calling functions, etc. The first 256 longs of the look-up RAM will be a fixed stack for calls and such. So, the stack starts at 0x0 and grows up to 0x0ff. Initially we'll just use COG RAM so that a typical architecture's load/store instructions can translate directly to rdlong/wrlong for memory read/writes, but eventually we'll add distinction between memories so that stack operatiosn use rdlut/wrlut, and normal memory operations needing the hub RAM will use rdlong/wrlong.
 
-The remaining 224 longs of cog RAM should be used as a cache for loops, etc. Eventually, there should be a way to specify a function or variable to be cached in cog RAM so it never needs to be fetched. 
+The remaining cog RAM should be used as a cache for loops, etc. Eventually, there should be a way to specify a function or variable to be cached in cog RAM so it never needs to be fetched. This will likely need a clang extension.
 
 ## Calling Convention
 For starters, we will use a simple calling convention using the above registers to pass and return values for functions.
 
 ### Passing Arguments
 - All 8 and 16 bit arguments are promoted to 32 bits
-- registers r12-r15 are used to pass first 4 arguments, 
-- remaining arguments are passed via the stack
+- registers r0-r3 are used to pass first 4 arguments, remaining arguments are passed via the stack
 
 ### Return Value
 - Functions will return values using r15.
