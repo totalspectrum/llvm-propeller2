@@ -10,7 +10,6 @@
 #include "P2MachineFunctionInfo.h"
 
 #include "P2InstrInfo.h"
-#include "P2Subtarget.h"
 #include "llvm/IR/Function.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"

@@ -15,7 +15,6 @@
 
 #include "P2InstrInfo.h"
 #include "P2MachineFunctionInfo.h"
-#include "P2Subtarget.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -33,23 +32,17 @@ using namespace llvm;
 // if it needs dynamic stack realignment, if frame pointer elimination is
 // disabled, or if the frame address is taken.
 bool P2FrameLowering::hasFP(const MachineFunction &MF) const {
-    // const MachineFrameInfo *MFI = MF.getFrameInfo();
-    // const TargetRegisterInfo *TRI = STI.getRegisterInfo();
+    //return MF.getTarget().Options.DisableFramePointerElim(MF) || MFI->isFrameAddressTaken() || TRI->needsStackRealignment(MF);
 
-    // return MF.getTarget().Options.DisableFramePointerElim(MF) ||
-    //     MFI->hasVarSizedObjects() || MFI->isFrameAddressTaken() ||
-    //     TRI->needsStackRealignment(MF);
+    // return (FuncInfo->getHasSpills() || FuncInfo->getHasAllocas() || FuncInfo->getHasStackArgs());
+    // TODO: implement this for real
     return false;
 }
 
-//@emitPrologue {
 void P2FrameLowering::emitPrologue(MachineFunction &MF,
                                        MachineBasicBlock &MBB) const {
 }
-//}
 
-//@emitEpilogue {
 void P2FrameLowering::emitEpilogue(MachineFunction &MF,
                                  MachineBasicBlock &MBB) const {
 }
-//}

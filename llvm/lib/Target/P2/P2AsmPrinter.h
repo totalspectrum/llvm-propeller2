@@ -16,7 +16,7 @@
 
 #include "P2MachineFunctionInfo.h"
 #include "P2MCInstLower.h"
-#include "P2Subtarget.h"
+
 #include "P2TargetMachine.h"
 #include "llvm/CodeGen/AsmPrinter.h"
 #include "llvm/MC/MCStreamer.h"
@@ -33,22 +33,12 @@ namespace llvm {
 
     class LLVM_LIBRARY_VISIBILITY P2AsmPrinter : public AsmPrinter {
 
-    private:
-
-        // lowerOperand - Convert a MachineOperand into the equivalent MCOperand.
-        bool lowerOperand(const MachineOperand &MO, MCOperand &MCOp);
-
     public:
-
-        const P2Subtarget *Subtarget;
         const P2FunctionInfo *P2FI;
         P2MCInstLower MCInstLowering;
 
         explicit P2AsmPrinter(TargetMachine &TM, std::unique_ptr<MCStreamer> Streamer)
-                            : AsmPrinter(TM, std::move(Streamer)),
-                            MCInstLowering(*this) {
-            Subtarget = static_cast<P2TargetMachine &>(TM).getSubtargetImpl();
-        }
+                            : AsmPrinter(TM, std::move(Streamer)), MCInstLowering(*this) {}
 
         virtual StringRef getPassName() const override {
             return "P2 Assembly Printer";
@@ -56,15 +46,14 @@ namespace llvm {
 
         virtual bool runOnMachineFunction(MachineFunction &MF) override;
 
-        //- EmitInstruction() must exists or will have run time error.
         void emitInstruction(const MachineInstr *MI) override;
         //void printSavedRegsBitmask(raw_ostream &O);
         //void printHex32(unsigned int Value, raw_ostream &O);
 
-        // void EmitFunctionEntryLabel() override;
-        // void EmitFunctionBodyStart() override;
-        // void EmitFunctionBodyEnd() override;
-        // void EmitStartOfAsmFile(Module &M) override;
+        void emitFunctionEntryLabel() override;
+        void emitFunctionBodyStart() override;
+        void emitFunctionBodyEnd() override;
+        void emitStartOfAsmFile(Module &M) override;
     };
 }
 

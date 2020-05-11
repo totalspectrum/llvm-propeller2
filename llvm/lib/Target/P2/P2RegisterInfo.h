@@ -21,7 +21,6 @@
 #include "P2GenRegisterInfo.inc"
 
 namespace llvm {
-    class P2Subtarget;
     class TargetInstrInfo;
     class Type;
 
@@ -38,9 +37,7 @@ namespace llvm {
         BitVector getReservedRegs(const MachineFunction &MF) const override;
 
         /// Stack Frame Processing Methods
-        void eliminateFrameIndex(MachineBasicBlock::iterator II,
-                               int SPAdj, unsigned FIOperandNum,
-                               RegScavenger *RS = nullptr) const override;
+        void eliminateFrameIndex(MachineBasicBlock::iterator II, int SPAdj, unsigned FIOperandNum, RegScavenger *RS = nullptr) const override;
 
         /// Debug information queries.
         Register getFrameRegister(const MachineFunction &MF) const override;

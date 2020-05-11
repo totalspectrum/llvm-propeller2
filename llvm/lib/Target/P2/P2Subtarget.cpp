@@ -12,17 +12,21 @@
 
 #include "P2Subtarget.h"
 #include "P2.h"
+
 #include "llvm/Support/TargetRegistry.h"
 
 using namespace llvm;
 
-#define DEBUG_TYPE "P2-subtarget"
+#define DEBUG_TYPE "p2-subtarget"
 
 #define GET_SUBTARGETINFO_TARGET_DESC
 #define GET_SUBTARGETINFO_CTOR
 #include "P2GenSubtargetInfo.inc"
 
-void P2Subtarget::anchor() { }
+void P2Subtarget::anchor() {}
 
-P2Subtarget::P2Subtarget(const Triple &TT, const std::string &CPU, const std::string &FS, const P2TargetMachine &TM)
-    : P2GenSubtargetInfo(TT, CPU, FS), FrameLowering(), InstrInfo(*this), TLInfo(TM, *this) {}
+P2Subtarget::P2Subtarget(const Triple &TT, const std::string &CPU, const std::string &FS, const P2TargetMachine &TM) :
+        P2GenSubtargetInfo(TT, CPU, FS),
+        InstrInfo(), FrameLowering(), TLInfo(TM) {
+    ParseSubtargetFeatures(CPU, FS);
+}

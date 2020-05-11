@@ -44,7 +44,7 @@ static void CreateMCInst(MCInst& Inst, unsigned Opc, const MCOperand& Opnd0,
         Inst.addOperand(Opnd2);
 }
 
-MCOperand P2MCInstLower::LowerOperand(const MachineOperand& MO, unsigned offset) const {
+MCOperand P2MCInstLower::lowerOperand(const MachineOperand& MO, unsigned offset) const {
     MachineOperandType MOTy = MO.getType();
 
     switch (MOTy) {
@@ -63,12 +63,12 @@ MCOperand P2MCInstLower::LowerOperand(const MachineOperand& MO, unsigned offset)
   return MCOperand();
 }
 
-void P2MCInstLower::Lower(const MachineInstr *MI, MCInst &OutMI) const {
-    OutMI.setOpcode(MI->getOpcode());
+void P2MCInstLower::lowerInstruction(const MachineInstr &MI, MCInst &OutMI) const {
+    OutMI.setOpcode(MI.getOpcode());
 
-    for (unsigned i = 0, e = MI->getNumOperands(); i != e; ++i) {
-        const MachineOperand &MO = MI->getOperand(i);
-        MCOperand MCOp = LowerOperand(MO);
+    for (unsigned i = 0, e = MI.getNumOperands(); i != e; ++i) {
+        const MachineOperand &MO = MI.getOperand(i);
+        MCOperand MCOp = lowerOperand(MO);
 
         if (MCOp.isValid())
             OutMI.addOperand(MCOp);

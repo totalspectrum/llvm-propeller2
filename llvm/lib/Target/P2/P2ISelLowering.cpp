@@ -16,7 +16,7 @@
 #include "P2MachineFunctionInfo.h"
 #include "P2TargetMachine.h"
 #include "P2TargetObjectFile.h"
-#include "P2Subtarget.h"
+
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
@@ -37,63 +37,27 @@ using namespace llvm;
 
 #define DEBUG_TYPE "P2-lower"
 
-//@3_1 1 {
 const char *P2TargetLowering::getTargetNodeName(unsigned Opcode) const {
-    #define NODE(name) case P2ISD::name: return #name
 
     switch (Opcode) {
-    NODE(RET_FLAG);
-    NODE(RETI_FLAG);
-    NODE(CALL);
-    NODE(WRAPPER);
-    NODE(LSL);
-    NODE(LSR);
-    NODE(ROL);
-    NODE(ROR);
-    NODE(ASR);
-    NODE(LSLLOOP);
-    NODE(LSRLOOP);
-    NODE(ROLLOOP);
-    NODE(RORLOOP);
-    NODE(ASRLOOP);
-    NODE(BRCOND);
-    NODE(CMP);
-    NODE(CMPC);
-    NODE(TST);
-    NODE(SELECT_CC);
-    default:
-        return nullptr;
+        case P2ISD::RET_FLAG: return "RET_FLAG";
+        default:
+            return nullptr;
     }
     #undef NODE
 }
-//@3_1 1 }
 
 //@P2TargetLowering {
-P2TargetLowering::P2TargetLowering(const P2TargetMachine &TM, const P2Subtarget &STI) : TargetLowering(TM), Subtarget(STI){
-    addRegisterClass(MVT::i32, &P2::CPURegsRegClass);
+P2TargetLowering::P2TargetLowering(const P2TargetMachine &TM) : TargetLowering(TM) {
+    addRegisterClass(MVT::i32, &P2::P2GPRRegClass);
 
-// must, computeRegisterProperties - Once all of the register classes are
-//  added, this allows us to compute derived properties we expose.
-    computeRegisterProperties(Subtarget.getRegisterInfo());
+    //  computeRegisterProperties - Once all of the register classes are
+    //  added, this allows us to compute derived properties we expose.
+    computeRegisterProperties(TM.getRegisterInfo());
 }
-
-//===----------------------------------------------------------------------===//
-//  Lower helper functions
-//===----------------------------------------------------------------------===//
-
-//===----------------------------------------------------------------------===//
-//  Misc Lower Operation implementation
-//===----------------------------------------------------------------------===//
 
 #include "P2GenCallingConv.inc"
 
-//===----------------------------------------------------------------------===//
-//@            Formal Arguments Calling Convention Implementation
-//===----------------------------------------------------------------------===//
-
-//@LowerFormalArguments {
-/// LowerFormalArguments - transform physical registers into virtual registers
-/// and generate load operations for arguments places on the stack.
 SDValue P2TargetLowering::LowerFormalArguments(SDValue Chain,
                                             CallingConv::ID CallConv,
                                             bool IsVarArg,
@@ -103,16 +67,11 @@ SDValue P2TargetLowering::LowerFormalArguments(SDValue Chain,
 
     return Chain;
 }
-// @LowerFormalArguments }
-
-//===----------------------------------------------------------------------===//
-//@              Return Value Calling Convention Implementation
-//===----------------------------------------------------------------------===//
 
 SDValue P2TargetLowering::LowerReturn(SDValue Chain,
-                                        CallingConv::ID CallConv, bool IsVarArg,
+                                        CallingConv::ID CallConv, bool isVarArg,
                                         const SmallVectorImpl<ISD::OutputArg> &Outs,
                                         const SmallVectorImpl<SDValue> &OutVals,
                                         const SDLoc &DL, SelectionDAG &DAG) const {
-    return DAG.getNode(P2ISD::RET_FLAG, DL, MVT::Other, Chain, DAG.getRegister(P2::R0, MVT::i32));
+    return DAG.getNode(P2ISD::RET_FLAG, DL, MVT::Other, Chain, DAG.getRegister(P2::R15, MVT::i32));
 }

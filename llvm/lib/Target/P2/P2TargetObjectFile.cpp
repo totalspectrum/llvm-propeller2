@@ -9,8 +9,8 @@
 
 #include "P2TargetObjectFile.h"
 
-#include "P2Subtarget.h"
 #include "P2TargetMachine.h"
+
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -22,6 +22,6 @@
 using namespace llvm;
 
 void P2TargetObjectFile::Initialize(MCContext &Ctx, const TargetMachine &TM){
-    // Base::Initialize(Ctx, TM);
-    // ProgmemDataSection = Ctx.getELFSection(".progmem.data", ELF::SHT_PROGBITS, ELF::SHF_ALLOC);
+    Base::Initialize(Ctx, TM);
+    ProgmemDataSection = Ctx.getELFSection(".progmem.data", ELF::SHT_PROGBITS, ELF::SHF_ALLOC);
 }

@@ -20,12 +20,12 @@ using namespace llvm;
 void P2MCAsmInfo::anchor() { }
 
 P2MCAsmInfo::P2MCAsmInfo(const Triple &TheTriple, const MCTargetOptions &Options) {
-    IsLittleEndian = false; // the default of IsLittleEndian is true
-    SupportsDebugInformation = true;
+    IsLittleEndian = true;
+    //SupportsDebugInformation = true;
     Data16bitsDirective = "\t.short\t";
     Data32bitsDirective = "\t.int\t";
     ZeroDirective = "\t.space\t";
-    CommentString = ";";
+    CommentString = "\'\'";
 
     UsesELFSectionDirectiveForBSS = true;
     AllowAtInName = true;

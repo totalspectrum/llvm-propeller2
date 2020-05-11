@@ -18,23 +18,21 @@
 
 namespace llvm {
 
-class P2Subtarget;
+    class P2FrameLowering : public TargetFrameLowering {
 
-class P2FrameLowering : public TargetFrameLowering {
+    public:
+        explicit P2FrameLowering()
+            : TargetFrameLowering(StackGrowsUp, Align(4), 0) {
+        }
 
-public:
-    explicit P2FrameLowering()
-        : TargetFrameLowering(StackGrowsDown, Align(4), -4) {
-    }
+        bool hasFP(const MachineFunction &MF) const override;
 
-    bool hasFP(const MachineFunction &MF) const override;
+        /// emitProlog/emitEpilog - These methods insert prolog and epilog code into
+        /// the function.
+        void emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
+        void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
 
-    /// emitProlog/emitEpilog - These methods insert prolog and epilog code into
-    /// the function.
-    void emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
-    void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
-
-};
+    };
 
 } // End llvm namespace
 

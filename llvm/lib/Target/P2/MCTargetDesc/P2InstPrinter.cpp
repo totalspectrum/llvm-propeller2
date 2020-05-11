@@ -86,28 +86,3 @@ void P2InstPrinter::printOperand(const MCInst *MI, unsigned OpNum,
     assert(Op.isExpr() && "unknown operand kind in printOperand");
     printExpr(Op.getExpr(), &MAI, O);
 }
-
-// void P2InstPrinter::printMemOperandRI(const MCInst *MI, unsigned OpNum,
-//                                        raw_ostream &O) {
-//   const MCOperand &base = MI->getOperand(OpNum);
-//   const MCOperand &offset = MI->getOperand(OpNum + 1);
-//   assert(base.isReg() && "Base should be register.");
-//   assert(offset.isImm() && "Offset should be immediate.");
-//   printRegName(O, base.getReg());
-//   O << "," << offset.getImm();
-// }
-
-// void P2InstPrinter::printPredicateOperand(const MCInst *MI, unsigned OpNum,
-//                                            raw_ostream &O) {
-
-//   const MCOperand &Op = MI->getOperand(OpNum);
-//   assert(Op.isImm() && "Predicate operand is immediate.");
-//   O << P2CondCodeToString((P2CC::CondCode)Op.getImm());
-// }
-
-// void P2InstPrinter::printBRCCPredicateOperand(const MCInst *MI, unsigned OpNum,
-//                                                raw_ostream &O) {
-//   const MCOperand &Op = MI->getOperand(OpNum);
-//   assert(Op.isImm() && "Predicate operand is immediate.");
-//   O << P2BRCondCodeToString((P2CC::BRCondCode)Op.getImm());
-// }

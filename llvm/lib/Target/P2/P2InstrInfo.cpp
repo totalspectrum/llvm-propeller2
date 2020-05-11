@@ -29,14 +29,65 @@ using namespace llvm;
 void P2InstrInfo::anchor() {}
 
 //@P2InstrInfo {
-P2InstrInfo::P2InstrInfo(const P2Subtarget &STI) : P2GenInstrInfo(), RI(), Subtarget(STI) {}
+P2InstrInfo::P2InstrInfo() : P2GenInstrInfo(), RI() {}
 
-//@GetInstSizeInBytes {
-/// Return the number of bytes of code the specified instruction may be.
-unsigned P2InstrInfo::GetInstSizeInBytes(const MachineInstr &MI) const {
-//@GetInstSizeInBytes - body
-    switch (MI.getOpcode()) {
-    default:
-        return MI.getDesc().getSize();
+void P2InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
+                                        MachineBasicBlock::iterator MI,
+                                        Register DestReg, int FrameIndex,
+                                        const TargetRegisterClass *RC,
+                                        const TargetRegisterInfo *TRI) const {
+    DebugLoc DL;
+    if (MI != MBB.end()) {
+        DL = MI->getDebugLoc();
     }
+
+    MachineFunction &MF = *MBB.getParent();
+    const MachineFrameInfo &MFI = MF.getFrameInfo();
+
+    MachineMemOperand *MMO = MF.getMachineMemOperand(
+        MachinePointerInfo::getFixedStack(MF, FrameIndex),
+        MachineMemOperand::MOLoad, MFI.getObjectSize(FrameIndex),
+        MFI.getObjectAlign(FrameIndex));
+
+    unsigned Opcode = 0;
+    if (TRI->isTypeLegalForClass(*RC, MVT::i32)) {
+        Opcode = P2::RDLONGrr;
+    } else {
+        llvm_unreachable("Cannot load this register from a stack slot!");
+    }
+
+    BuildMI(MBB, MI, DL, get(Opcode), DestReg).addFrameIndex(FrameIndex).addMemOperand(MMO);
+}
+
+void P2InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
+                                        MachineBasicBlock::iterator MI,
+                                        Register SrcReg, bool isKill,
+                                        int FrameIndex,
+                                        const TargetRegisterClass *RC,
+                                        const TargetRegisterInfo *TRI) const {
+    MachineFunction &MF = *MBB.getParent();
+
+    DebugLoc DL;
+    if (MI != MBB.end()) {
+        DL = MI->getDebugLoc();
+    }
+
+    const MachineFrameInfo &MFI = MF.getFrameInfo();
+
+    MachineMemOperand *MMO = MF.getMachineMemOperand(
+        MachinePointerInfo::getFixedStack(MF, FrameIndex),
+        MachineMemOperand::MOStore, MFI.getObjectSize(FrameIndex),
+        MFI.getObjectAlign(FrameIndex));
+
+    unsigned Opcode = 0;
+    if (TRI->isTypeLegalForClass(*RC, MVT::i32)) {
+        Opcode = P2::WRLONGrr;
+    } else {
+        llvm_unreachable("Cannot store this register into a stack slot!");
+    }
+
+    BuildMI(MBB, MI, DL, get(Opcode))
+        .addFrameIndex(FrameIndex)
+        .addReg(SrcReg, getKillRegState(isKill))
+        .addMemOperand(MMO);
 }

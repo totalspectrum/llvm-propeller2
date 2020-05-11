@@ -1,13 +1,16 @@
 /* compilation:
-    ~/Github/llvm-propeller2/build/bin/clang -target mips-unknown-linux-gnu -c test1.cpp -emit-llvm -o test1.bc
-    ~/Github/llvm-propeller2/build/bin/llc -march=cpu0 -relocation-model=pic -filetype=asm test1.bc -o test1.cpu0.s
-    ~/Github/llvm-propeller2/build/bin/llc -march=cpu0 -relocation-model=pic -filetype=obj test1.bc -o test1.cpu0.o
-
-    ~/Github/llvm-propeller2/build/bin/llc -march=cpu0 -relocation-model=pic -filetype=asm test1.bc -o test1.cpu0.s
-    ~/Github/llvm-propeller2/build/bin/llc -march=cpu0 -relocation-model=pic -filetype=obj test1.bc -o test1.cpu0.o
+    ~/Github/llvm-propeller2/build/bin/clang -target mips-unknown-linux-gnu -S -c test1.cpp -emit-llvm -o test1.ll
+    ~/Github/llvm-propeller2/build/bin/llc -march=p2 -filetype=asm test1.bc -o test1.s
+    ~/Github/llvm-propeller2/build/bin/llc -march=p2 -filetype=obj test1.bc -o test1.o
 */
 
 int main() {
-    return 1;
+    int a = 5;
+    int b = 2;
+
+    int c = a + b;      // c = 7
+    //int d = b + 1;      // d = 3
+
+    return (c);
 }
 

@@ -15,10 +15,13 @@
 
 namespace llvm {
 class P2TargetMachine;
+    typedef TargetLoweringObjectFileELF Base;
+
     class P2TargetObjectFile : public TargetLoweringObjectFileELF {
         // MCSection *SmallDataSection;
         // MCSection *SmallBSSSection;
         // const P2TargetMachine *TM;
+        MCSection *ProgmemDataSection;
     public:
         //void Initialize(MCContext &Ctx) override;
         void Initialize(MCContext &Ctx, const TargetMachine &TM) override;

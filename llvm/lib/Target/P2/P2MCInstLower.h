@@ -30,8 +30,8 @@ namespace llvm {
     public:
         P2MCInstLower(P2AsmPrinter &asmprinter);
         void Initialize(MCContext* C);
-        void Lower(const MachineInstr *MI, MCInst &OutMI) const;
-        MCOperand LowerOperand(const MachineOperand& MO, unsigned offset = 0) const;
+        void lowerInstruction(const MachineInstr &MI, MCInst &OutMI) const;
+        MCOperand lowerOperand(const MachineOperand& MO, unsigned offset = 0) const;
     };
 }
 

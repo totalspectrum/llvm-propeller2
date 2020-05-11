@@ -27,10 +27,9 @@ namespace llvm {
     class P2InstrInfo : public P2GenInstrInfo {
         const P2RegisterInfo RI;
         virtual void anchor();
-    protected:
-        const P2Subtarget &Subtarget;
+
     public:
-        explicit P2InstrInfo(const P2Subtarget &STI);
+        explicit P2InstrInfo();
 
         /// getRegisterInfo - TargetInstrInfo is a superset of MRegister info.  As
         /// such, whenever a client has an instance of instruction info, it should
@@ -38,8 +37,16 @@ namespace llvm {
         ///
         const P2RegisterInfo &getRegisterInfo() const { return RI; };
 
-        /// Return the number of bytes of code the specified instruction may be.
-        unsigned GetInstSizeInBytes(const MachineInstr &MI) const;
+        void storeRegToStackSlot(MachineBasicBlock &MBB,
+                                MachineBasicBlock::iterator MI, Register SrcReg,
+                                bool isKill, int FrameIndex,
+                                const TargetRegisterClass *RC,
+                                const TargetRegisterInfo *TRI) const override;
+
+        void loadRegFromStackSlot(MachineBasicBlock &MBB,
+                                    MachineBasicBlock::iterator MI, Register DestReg,
+                                    int FrameIndex, const TargetRegisterClass *RC,
+                                    const TargetRegisterInfo *TRI) const override;
 
     protected:
     };

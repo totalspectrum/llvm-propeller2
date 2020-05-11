@@ -34,11 +34,7 @@ namespace llvm {
                         const MCSubtargetInfo &STI, raw_ostream &O) override;
 
     private:
-        //void printMemOperandRI(const MCInst *MI, unsigned OpNum, raw_ostream &O);
         void printOperand(const MCInst *MI, unsigned OpNum, raw_ostream &O);
-        // void printPredicateOperand(const MCInst *MI, unsigned OpNum, raw_ostream &O);
-        // void printBRCCPredicateOperand(const MCInst *MI, unsigned OpNum,
-        //                                raw_ostream &O);
     };
 } // end namespace llvm
 

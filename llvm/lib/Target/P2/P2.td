@@ -16,15 +16,14 @@ include "llvm/Target/Target.td"
 
 include "P2RegisterInfo.td"
 include "P2InstrInfo.td"
-//include "P2InstrFormats.td"
-//include "P2RegisterInfoGPROutForOther.td" // except AsmParser
+include "P2CallingConv.td"
 
 def P2InstrInfo : InstrInfo;
 
-class Proc<string Name, list<SubtargetFeature> Features>
- : Processor<Name, NoItineraries, Features>;
+class Proc<string Name>
+ : Processor<Name, NoItineraries, []>;
 
-def : Proc<"Propeller 2", []>;
+def : Proc<"Propeller 2">;
 
 def P2 : Target {
     let InstructionSet = P2InstrInfo;

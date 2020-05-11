@@ -48,35 +48,23 @@ bool P2AsmPrinter::runOnMachineFunction(MachineFunction &MF) {
 }
 
 void P2AsmPrinter::emitInstruction(const MachineInstr *MI) {
-    //@EmitInstruction body {
-    if (MI->isDebugValue()) {
-        SmallString<128> Str;
-        raw_svector_ostream OS(Str);
-
-        //PrintDebugValueComment(MI, OS);
-        return;
-    }
-
-    //@print out instruction:
-    //  Print out both ordinary instruction and boudle instruction
-    MachineBasicBlock::const_instr_iterator I = MI->getIterator();
-    MachineBasicBlock::const_instr_iterator E = MI->getParent()->instr_end();
-
-    do {
-        if (I->isPseudo())
-            llvm_unreachable("Pseudo opcode found in EmitInstruction()");
-
-        MCInst TmpInst0;
-        MCInstLowering.Lower(&*I, TmpInst0);
-        OutStreamer->emitInstruction(TmpInst0, getSubtargetInfo());
-    } while ((++I != E) && I->isInsideBundle()); // Delay slot check
+    MCInst I;
+    MCInstLowering.lowerInstruction(*MI, I);
+    EmitToStreamer(*OutStreamer, I);
 }
 
-// void P2AsmPrinter::PrintDebugValueComment(const MachineInstr *MI,
-//                                            raw_ostream &OS) {
-//     // TODO: implement
-//      OS << "PrintDebugValueComment()";
-// }
+void P2AsmPrinter::emitFunctionEntryLabel() {
+    OutStreamer->emitLabel(CurrentFnSym);
+}
+void P2AsmPrinter::emitFunctionBodyStart() {
+
+}
+void P2AsmPrinter::emitFunctionBodyEnd() {
+
+}
+void P2AsmPrinter::emitStartOfAsmFile(Module &M) {
+
+}
 
 // Force static initialization.
 extern "C" void LLVMInitializeP2AsmPrinter() {
