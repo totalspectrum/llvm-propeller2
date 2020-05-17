@@ -59,6 +59,13 @@ void P2InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
     BuildMI(MBB, MI, DL, get(Opcode), DestReg).addFrameIndex(FrameIndex).addMemOperand(MMO);
 }
 
+void P2InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
+                               MachineBasicBlock::iterator MI,
+                               const DebugLoc &DL, MCRegister DestReg,
+                               MCRegister SrcReg, bool KillSrc) const {
+    BuildMI(MBB, MI, DL, get(P2::MOVrr), DestReg).addReg(SrcReg, getKillRegState(KillSrc));
+}
+
 void P2InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
                                         MachineBasicBlock::iterator MI,
                                         Register SrcReg, bool isKill,

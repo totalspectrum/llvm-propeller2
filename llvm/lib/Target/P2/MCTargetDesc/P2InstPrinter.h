@@ -20,6 +20,10 @@
 namespace llvm {
 
     class P2InstPrinter : public MCInstPrinter {
+
+        void printOperand(const MCInst *MI, unsigned OpNum, raw_ostream &O);
+        void printOperand(const MCInst *MI, uint64_t addr, unsigned OpNo,raw_ostream &O);
+
     public:
         P2InstPrinter(const MCAsmInfo &MAI,
                         const MCInstrInfo &MII,
@@ -32,9 +36,6 @@ namespace llvm {
         void printRegName(raw_ostream &OS, unsigned RegNo) const override;
         void printInst(const MCInst *MI, uint64_t Address, StringRef Annot,
                         const MCSubtargetInfo &STI, raw_ostream &O) override;
-
-    private:
-        void printOperand(const MCInst *MI, unsigned OpNum, raw_ostream &O);
     };
 } // end namespace llvm
 

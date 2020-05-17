@@ -57,7 +57,7 @@ void P2AsmPrinter::emitFunctionEntryLabel() {
     OutStreamer->emitLabel(CurrentFnSym);
 }
 void P2AsmPrinter::emitFunctionBodyStart() {
-
+    MCInstLowering.Initialize(&MF->getContext());
 }
 void P2AsmPrinter::emitFunctionBodyEnd() {
 

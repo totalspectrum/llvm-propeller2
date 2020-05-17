@@ -22,10 +22,10 @@ void P2MCAsmInfo::anchor() { }
 P2MCAsmInfo::P2MCAsmInfo(const Triple &TheTriple, const MCTargetOptions &Options) {
     IsLittleEndian = true;
     //SupportsDebugInformation = true;
-    Data16bitsDirective = "\t.short\t";
-    Data32bitsDirective = "\t.int\t";
-    ZeroDirective = "\t.space\t";
-    CommentString = "\'\'";
+    // Data16bitsDirective = "\t.short\t";
+    // Data32bitsDirective = "\t.int\t";
+    // ZeroDirective = "\t.space\t";
+    CommentString = "\'";
 
     UsesELFSectionDirectiveForBSS = true;
     AllowAtInName = true;

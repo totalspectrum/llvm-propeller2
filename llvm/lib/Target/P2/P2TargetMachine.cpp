@@ -57,6 +57,8 @@ namespace {
         P2PassConfig(P2TargetMachine &TM, PassManagerBase &PM) : TargetPassConfig(TM, PM) {}
 
         bool addInstSelector() override;
+        void addPreEmitPass() override;
+        void addPreRegAlloc() override;
 
         P2TargetMachine &getP2TargetMachine() const {
             return getTM<P2TargetMachine>();
@@ -69,6 +71,20 @@ namespace {
         addPass(createP2ISelDag(getP2TargetMachine(), getOptLevel()));
         return false;
     }
+
+    // Implemented by targets that want to run passes immediately before
+    // machine code is emitted. return true if -print-machineinstrs should
+    // print out the code after the passes.
+    void P2PassConfig::addPreEmitPass() {
+        P2TargetMachine &TM = getP2TargetMachine();
+        addPass(createP2DelJmpPass(TM));
+    }
+
+    void P2PassConfig::addPreRegAlloc() {
+        P2TargetMachine &TM = getP2TargetMachine();
+        addPass(createP2ExpandPseudosPass(TM));
+    }
+
 } // namespace
 
 TargetPassConfig *P2TargetMachine::createPassConfig(PassManagerBase &PM) {

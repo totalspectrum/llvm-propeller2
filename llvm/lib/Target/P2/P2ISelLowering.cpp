@@ -72,6 +72,50 @@ SDValue P2TargetLowering::LowerReturn(SDValue Chain,
                                         CallingConv::ID CallConv, bool isVarArg,
                                         const SmallVectorImpl<ISD::OutputArg> &Outs,
                                         const SmallVectorImpl<SDValue> &OutVals,
-                                        const SDLoc &DL, SelectionDAG &DAG) const {
-    return DAG.getNode(P2ISD::RET, DL, MVT::Other, Chain, DAG.getRegister(P2::R15, MVT::i32));
+                                        const SDLoc &dl, SelectionDAG &DAG) const {
+    // CCValAssign - represent the assignment of the return value to locations.
+    SmallVector<CCValAssign, 16> RVLocs;
+
+    // CCState - Info about the registers and stack slot.
+    CCState CCInfo(CallConv, isVarArg, DAG.getMachineFunction(), RVLocs, *DAG.getContext());
+
+    // Analyze return values.
+    auto CCFunction = RetCC_P2;
+    CCInfo.AnalyzeReturn(Outs, CCFunction);
+
+    // If this is the first return lowered for this function, add the regs to
+    // the liveout set for the function.
+    MachineFunction &MF = DAG.getMachineFunction();
+    unsigned e = RVLocs.size();
+
+    SDValue Flag;
+    SmallVector<SDValue, 4> RetOps(1, Chain);
+    // Copy the result values into the output registers.
+    for (unsigned i = 0; i != e; ++i) {
+        CCValAssign &VA = RVLocs[i];
+        assert(VA.isRegLoc() && "Can only return in registers!");
+
+        Chain = DAG.getCopyToReg(Chain, dl, VA.getLocReg(), OutVals[i], Flag);
+
+        // Guarantee that all emitted copies are stuck together with flags.
+        Flag = Chain.getValue(1);
+        RetOps.push_back(DAG.getRegister(VA.getLocReg(), VA.getLocVT()));
+    }
+
+    // Don't emit the ret/reti instruction when the naked attribute is present in
+    // the function being compiled.
+    if (MF.getFunction().getAttributes().hasAttribute(AttributeList::FunctionIndex, Attribute::Naked)) {
+        return Chain;
+    }
+
+    unsigned RetOpc = P2ISD::RET;
+
+    RetOps[0] = Chain; // Update chain.
+
+    if (Flag.getNode()) {
+        RetOps.push_back(Flag);
+    }
+
+    return DAG.getNode(RetOpc, dl, MVT::Other, RetOps);
+
 }

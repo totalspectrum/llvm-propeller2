@@ -51,6 +51,10 @@ let Namespace = "P2" in {
     def R15 : P2Reg<0x1ef, "r15">, DwarfRegNum<[15]>;
 
     def SP  : P2Reg<0x1df, "sp">, DwarfRegNum<[16]>;
+
+    def SW  : P2Reg<0, "sw">, DwarfRegNum<[20]>; // this is a fake register representing the status word. it can not be directly accessed.
+    def QX  : P2Reg<0, "qx">, DwarfRegNum<[21]>; // this is a fake register for x result of cordic
+    def QY  : P2Reg<0, "qy">, DwarfRegNum<[22]>; // this is a fake register for x result of cordic
 }
 
 //===----------------------------------------------------------------------===//
@@ -60,6 +64,8 @@ let Namespace = "P2" in {
 
 def P2GPR : RegisterClass<"P2", [i32], 32, (add
     // general purpose registers
-    R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, R13, R14, R15
+    R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, R13, R14, R15, SP
 )>;
+
+def P2Implicit : RegisterClass<"P2", [i32], 32, (add SW, QX, QY)>;
 

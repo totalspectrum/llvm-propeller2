@@ -42,9 +42,8 @@ const MCPhysReg* P2RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) c
 }
 
 BitVector P2RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
-    // TODO
     BitVector Reserved(getNumRegs());
-
+    Reserved.set(P2::SP);
     return Reserved;
 }
 
@@ -69,10 +68,9 @@ P2RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
     uint64_t stackSize = MFI.getStackSize();
     int64_t offset = -MFI.getObjectOffset(FrameIndex) - 4; // negative to offset down, - an extra 4 since we will write up. kind of confusing but it works
-    int64_t fi_offset = MI.getOperand(FIOperandNum+1).getImm();
 
     offset += MFI.getStackSize() - TFI->getOffsetOfLocalArea(); // LOA should be 0 for P2
-    offset += MI.getOperand(FIOperandNum+1).getImm();;
+    offset += MI.getOperand(FIOperandNum+1).getImm();
 
     MI.setDesc(inst_info.get(P2::MOVrr)); // change our psesudo instruction to a mov
     MI.getOperand(FIOperandNum).ChangeToRegister(P2::SP, false); // change the abstract frame index register to our real frame pointer register

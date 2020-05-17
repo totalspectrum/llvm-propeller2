@@ -19,8 +19,12 @@
 #include "llvm/Target/TargetMachine.h"
 
 namespace llvm {
-  class P2TargetMachine;
-  class FunctionPass;
+    class P2TargetMachine;
+    class FunctionPass;
+
+    FunctionPass *createP2DelJmpPass(P2TargetMachine &TM);
+    FunctionPass *createP2ExpandPseudosPass(P2TargetMachine &tm);
+
 
 } // end namespace llvm;
 

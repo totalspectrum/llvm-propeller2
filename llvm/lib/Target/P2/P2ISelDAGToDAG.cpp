@@ -51,6 +51,7 @@ bool P2DAGToDAGISel::runOnMachineFunction(MachineFunction &MF) {
 }
 
 void P2DAGToDAGISel::Select(SDNode *N) {
+    LLVM_DEBUG(N->dump(); errs()<<"\n");
     unsigned Opcode = N->getOpcode();
 
     // Dump information about the Node being selected
@@ -64,12 +65,6 @@ void P2DAGToDAGISel::Select(SDNode *N) {
     }
 
     if(FrameIndexSDNode *FIN = dyn_cast<FrameIndexSDNode>(N)) {
-        // auto Addr = CurDAG->getTargetFrameIndex(FIN->getIndex(), TLI->getPointerTy(CurDAG->getDataLayout()));
-        // SDLoc dl(Addr);
-        // //LLVM_DEBUG(errs() << "have a frame index node, changing to move instruction, "; Addr.dump(); errs() << "\n");
-        // SDNode *ADD = CurDAG->getMachineNode(P2::ADDri, dl, MVT::i32, Addr);
-        // CurDAG->ReplaceAllUsesWith(Node, MOV);
-
         auto DL = CurDAG->getDataLayout();
         int FI = cast<FrameIndexSDNode>(N)->getIndex();
         SDValue TFI = CurDAG->getTargetFrameIndex(FI, getTargetLowering()->getPointerTy(DL));

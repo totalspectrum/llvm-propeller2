@@ -34,8 +34,11 @@ namespace llvm {
         /// getRegisterInfo - TargetInstrInfo is a superset of MRegister info.  As
         /// such, whenever a client has an instance of instruction info, it should
         /// always be able to get register info as well (through this method).
-        ///
         const P2RegisterInfo &getRegisterInfo() const { return RI; };
+
+        void copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
+                   const DebugLoc &DL, MCRegister DestReg, MCRegister SrcReg,
+                   bool KillSrc) const override;
 
         void storeRegToStackSlot(MachineBasicBlock &MBB,
                                 MachineBasicBlock::iterator MI, Register SrcReg,

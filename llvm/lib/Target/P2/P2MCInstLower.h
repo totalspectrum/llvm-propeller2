@@ -27,6 +27,9 @@ namespace llvm {
         typedef MachineOperand::MachineOperandType MachineOperandType;
         MCContext *Ctx;
         P2AsmPrinter &AsmPrinter;
+
+        MCOperand LowerSymbolOperand(const MachineOperand &MO, MachineOperandType MOTy, unsigned Offset) const;
+
     public:
         P2MCInstLower(P2AsmPrinter &asmprinter);
         void Initialize(MCContext* C);
