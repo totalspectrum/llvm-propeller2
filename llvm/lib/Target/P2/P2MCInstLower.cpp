@@ -87,19 +87,25 @@ MCOperand P2MCInstLower::lowerOperand(const MachineOperand& MO, unsigned offset)
 
         default:
             llvm_unreachable("MCInstrLower: unknown operand type");
+        case MachineOperand::MO_GlobalAddress:
+        case MachineOperand::MO_JumpTableIndex:
+        case MachineOperand::MO_BlockAddress:
         case MachineOperand::MO_MachineBasicBlock:
             return LowerSymbolOperand(MO, MOTy, offset);
+
         case MachineOperand::MO_Register:
             // Ignore all implicit register operands.
             if (MO.isImplicit()) break;
             return MCOperand::createReg(MO.getReg());
+
         case MachineOperand::MO_Immediate:
             return MCOperand::createImm(MO.getImm() + offset);
+
         case MachineOperand::MO_RegisterMask:
             break;
     }
 
-  return MCOperand();
+    return MCOperand();
 }
 
 void P2MCInstLower::lowerInstruction(const MachineInstr &MI, MCInst &OutMI) const {

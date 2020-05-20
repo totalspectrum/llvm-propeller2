@@ -108,7 +108,7 @@ class P2BranchInst<dag outs, dag ins, P2Effect eff, list<dag> pattern> :
     let isTerminator = 1;
 }
 
-class Pseudo<dag outs, dag ins, string asmstr, list<dag> pattern> : P2Inst<0, outs, ins, asmstr, pattern> {
+class Pseudo<dag outs, dag ins, string asmstr, list<dag> pattern> : P2Inst<0, outs, ins, !strconcat(asmstr, " PSEUDO"), pattern> {
     let Pattern = pattern;
     let isPseudo = 1;
     let isCodeGenOnly = 1;

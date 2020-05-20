@@ -29,7 +29,7 @@ using namespace llvm;
 void P2InstrInfo::anchor() {}
 
 //@P2InstrInfo {
-P2InstrInfo::P2InstrInfo() : P2GenInstrInfo(), RI() {}
+P2InstrInfo::P2InstrInfo() : P2GenInstrInfo(P2::ADJCALLSTACKDOWN, P2::ADJCALLSTACKUP), RI() {}
 
 void P2InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                         MachineBasicBlock::iterator MI,
@@ -63,7 +63,9 @@ void P2InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                MachineBasicBlock::iterator MI,
                                const DebugLoc &DL, MCRegister DestReg,
                                MCRegister SrcReg, bool KillSrc) const {
-    BuildMI(MBB, MI, DL, get(P2::MOVrr), DestReg).addReg(SrcReg, getKillRegState(KillSrc));
+    BuildMI(MBB, MI, DL, get(P2::MOVrr))
+        .addReg(DestReg)
+        .addReg(SrcReg, getKillRegState(KillSrc));
 }
 
 void P2InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
@@ -97,4 +99,26 @@ void P2InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
         .addFrameIndex(FrameIndex)
         .addReg(SrcReg, getKillRegState(isKill))
         .addMemOperand(MMO);
+}
+
+void P2InstrInfo::adjustStackPtr(unsigned SP, int64_t amount, MachineBasicBlock &MBB, MachineBasicBlock::iterator I) const {
+    DebugLoc DL = I != MBB.end() ? I->getDebugLoc() : DebugLoc();
+
+    unsigned inst = P2::ADDri;
+
+    if (amount < 0) {
+        inst = P2::SUBri;
+        amount = -amount;
+    }
+
+    if (isInt<32>(amount)) {
+        if (!isInt<9>(amount)) {
+            // if we need more than 9 bits to store amount, augment the next source immediate (which will be added below)
+            BuildMI(MBB, I, DL, get(P2::AUGS)).addImm(amount>>9);
+        }
+
+        BuildMI(MBB, I, DL, get(inst), SP).addReg(SP).addImm(amount);
+    } else {
+        llvm_unreachable("Cannot adjust stack pointer by more than 32 bits (and adjusting by more than 20 bits ever makes sense!)");
+    }
 }

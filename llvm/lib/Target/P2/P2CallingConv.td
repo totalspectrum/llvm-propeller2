@@ -28,4 +28,6 @@ def ArgCC_P2_Vararg : CallingConv <[
 def RetCC_P2 : CallingConv <[
     // i32 are returned in R15
     CCIfType<[i32], CCAssignToReg<[R15]>>,
+
+    CCIfType<[i32], CCAssignToStack<4, 4>>
 ]>;

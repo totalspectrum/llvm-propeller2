@@ -14,15 +14,20 @@
 #define LLVM_LIB_TARGET_P2_P2FRAMELOWERING_H
 
 #include "P2.h"
+
 #include "llvm/CodeGen/TargetFrameLowering.h"
 
 namespace llvm {
 
+    class P2TargetMachine;
+
     class P2FrameLowering : public TargetFrameLowering {
 
+        const P2TargetMachine &tm;
+
     public:
-        explicit P2FrameLowering()
-            : TargetFrameLowering(StackGrowsUp, Align(4), 0) {
+        explicit P2FrameLowering(const P2TargetMachine &TM)
+            : TargetFrameLowering(StackGrowsUp, Align(4), 0), tm(TM) {
         }
 
         bool hasFP(const MachineFunction &MF) const override;
@@ -31,6 +36,10 @@ namespace llvm {
         /// the function.
         void emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
         void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
+
+        MachineBasicBlock::iterator eliminateCallFramePseudoInstr(MachineFunction &MF,
+                                        MachineBasicBlock &MBB,
+                                        MachineBasicBlock::iterator I) const override;
 
     };
 

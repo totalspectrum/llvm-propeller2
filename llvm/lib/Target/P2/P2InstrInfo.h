@@ -51,6 +51,9 @@ namespace llvm {
                                     int FrameIndex, const TargetRegisterClass *RC,
                                     const TargetRegisterInfo *TRI) const override;
 
+        void adjustStackPtr(unsigned SP, int64_t Amount, MachineBasicBlock &MBB,
+                                MachineBasicBlock::iterator I) const;
+
     protected:
     };
 }

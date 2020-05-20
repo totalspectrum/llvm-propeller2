@@ -15,15 +15,39 @@
 
 include "P2InstrFormats.td"
 
-/* Function Calling Instructions */
+/*--------------------------------*/
+/* General type definitions       */
+/*--------------------------------*/
 
-def P2RET : SDNode<"P2ISD::RET", SDTNone, [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
+def SDT_P2Call : SDTypeProfile<0, -1, [SDTCisVT<0, iPTR>]>;
+def SDT_P2Mov : SDTypeProfile<1, 1, [SDTCisSameAs<0, 1>]>;
+def SDT_P2CallSeqStart : SDCallSeqStart<[SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
+def SDT_P2CallSeqEnd : SDCallSeqEnd<[SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
 
-let isTerminator = 1, isReturn = 1, isBarrier = 1 in {
-    def RET     : P2Inst<0b1101011, (outs), (ins), "ret", [(P2RET)]>;
+def jmptarget    : Operand<OtherVT> {
+    let EncoderMethod = "getJumpTargetOpValue";
+    let OperandType = "OPERAND_PCREL";
 }
 
-/* Basic math and logic */
+def calltarget : Operand<iPTR> {
+    let EncoderMethod = "encodeCallTarget";
+}
+
+/*--------------------------------*/
+/* custom nodes                   */
+/*--------------------------------*/
+// this is used for loading global addresses
+def P2GAWrapper    : SDNode<"P2ISD::GAWRAPPER", SDT_P2Mov>;
+
+def P2callseq_start : SDNode<"ISD::CALLSEQ_START", SDT_P2CallSeqStart, [SDNPHasChain, SDNPOutGlue]>;
+def P2callseq_end : SDNode<"ISD::CALLSEQ_END", SDT_P2CallSeqEnd, [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]>;
+
+def P2RET   : SDNode<"P2ISD::RET", SDTNone, [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
+def P2CALL  : SDNode<"P2ISD::CALL", SDT_P2Call, [SDNPHasChain, SDNPOutGlue, SDNPOptInGlue, SDNPVariadic]>;
+
+/*--------------------------------*/
+/* basic math and logic           */
+/*--------------------------------*/
 
 let Constraints = "$src1 = $dst" in {
     def ADDrr   : P2Inst<0b0001000,  (outs P2GPR:$dst), (ins P2GPR:$src1, P2GPR:$src2), "add $dst, $src2", [(set P2GPR:$dst, (add P2GPR:$src1, P2GPR:$src2))]>;
@@ -33,30 +57,25 @@ let Constraints = "$src1 = $dst" in {
     def SUBri   : P2Inst<0b0001100,  (outs P2GPR:$dst), (ins P2GPR:$src1, i32imm:$src2), "sub $dst, #$src2", [(set P2GPR:$dst, (sub P2GPR:$src1, imm:$src2))]>;
 }
 
-/* More complex math and logic */
-//def P2DIV       : SDNode<"P2ISD::DIV", SDTIntBinOp, [SDNPOutGlue]>;
-//def P2REM       : SDNode<"P2ISD::REM", SDTIntBinOp, [SDNPOutGlue]>;
+/*--------------------------------*/
+/* More complicated math          */
+/*--------------------------------*/
 
 def GETQX       : P2Inst<0b1101011, (outs P2GPR:$dst), (ins P2Implicit:$qx), "getqx $dst", []>;
 def GETQY       : P2Inst<0b1101011, (outs P2GPR:$dst), (ins P2Implicit:$qy), "getqy $dst", []>;
 
 def QDIV        : P2Inst<0b1101000, (outs P2Implicit:$qx, P2Implicit:$qy), (ins P2GPR:$src1, P2GPR:$src2), "qdiv $src1, $src2", []>;
 
-def QSREM       : Pseudo<(outs P2GPR:$dst), (ins P2GPR:$src1, P2GPR:$src2), "srem $dst, $src1, $src2 PSEUDO", [(set P2GPR:$dst, (srem P2GPR:$src1, P2GPR:$src2))]>;
-def QUREM       : Pseudo<(outs P2GPR:$dst), (ins P2GPR:$src1, P2GPR:$src2), "Urem $dst, $src1, $src2 PSEUDO", [(set P2GPR:$dst, (srem P2GPR:$src1, P2GPR:$src2))]>;
+def QSREM       : Pseudo<(outs P2GPR:$dst), (ins P2GPR:$src1, P2GPR:$src2), "srem $dst, $src1, $src2", [(set P2GPR:$dst, (srem P2GPR:$src1, P2GPR:$src2))]>;
+def QUREM       : Pseudo<(outs P2GPR:$dst), (ins P2GPR:$src1, P2GPR:$src2), "Urem $dst, $src1, $src2", [(set P2GPR:$dst, (srem P2GPR:$src1, P2GPR:$src2))]>;
 
-//def : Pat<(srem i32:$src1, i32:$src2), (GETQY (QDIV i32:$src1, i32:$src2))>;
-/* branching and conditionals */
+/*--------------------------------*/
+/* branching and conditionals     */
+/*--------------------------------*/
 
 // how branching will work:
 // define branch instruction for various compare branches (equal, not equal, etc), they will probably be all subclasses of common branch with different effects stuck to it.
 // define a pattern that matched a compare instruction output inputting to one of the branch instructions for various IR conditional branch patterns
-
-
-def jmptarget    : Operand<OtherVT> {
-    let EncoderMethod = "getJumpTargetOpValue";
-    let OperandType = "OPERAND_PCREL";
-}
 
 def CMPrr       : P2Inst<0b0010000, (outs P2Implicit:$dst), (ins P2GPR:$src1, P2GPR:$src2), "cmp $src1, $src2\twcz", []>;
 def CMPri       : P2Inst<0b0010000, (outs P2Implicit:$dst), (ins P2GPR:$src1, i32imm:$src2), "cmp $src1, #$src2\twcz", []>;
@@ -82,17 +101,45 @@ def : Pat<(brcc SETLT, P2GPR:$lhs, imm:$rhs, bb:$target), (JMPgt (CMPri P2GPR:$l
 def : Pat<(brcc SETGT, P2GPR:$lhs, P2GPR:$rhs, bb:$target), (JMPgt (CMPRrr P2GPR:$lhs, P2GPR:$rhs), bb:$target)>;
 def : Pat<(brcc SETGT, P2GPR:$lhs, imm:$rhs, bb:$target), (JMPgt (CMPRri P2GPR:$lhs, imm:$rhs), bb:$target)>;
 
-/* Moving data */
-def MOVrr       : P2Inst<0b0110000,  (outs P2GPR:$dst), (ins P2GPR:$src), "mov $dst, $src", [(set P2GPR:$dst, P2GPR:$src)]>;
+/*--------------------------------*/
+/* moving data                    */
+/*--------------------------------*/
 def MOVri       : P2Inst<0b0110000,  (outs P2GPR:$dst), (ins i32imm:$src), "mov $dst, #$src", [(set P2GPR:$dst, imm:$src)]>;
+def MOVrr       : P2Inst<0b0110000,  (outs P2GPR:$dst), (ins P2GPR:$src), "mov $dst, $src", [(set P2GPR:$dst, P2GPR:$src)]>;
 
 def RDLONGrr    : P2Inst<0b1011000,  (outs P2GPR:$dst), (ins P2GPR:$src), "rdlong $dst, $src", [(set P2GPR:$dst, (load P2GPR:$src))]>;
 
 def WRLONGrr    : P2Inst<0b1100011,  (outs), (ins P2GPR:$dst, P2GPR:$src), "wrlong $dst, $src", [(store P2GPR:$dst, P2GPR:$src)]>;
 def WRLONGir    : P2Inst<0b1100011,  (outs), (ins i32imm:$dst, P2GPR:$src), "wrlong #$dst, $src", [(store imm:$dst, P2GPR:$src)]>;
 
-/* Misc instructions */
-def NOP         : P2Inst<0b0000000, (outs), (ins), "nop", []>;
+//def : Pat<(i32 imm:$i), (MOVri i32imm:$i)>;
 
-/* Pseudo instructions for intermediate steps */
-def FRMIDX      : Pseudo<(outs P2GPR:$dst), (ins P2GPR:$src, i32imm:$src2), "frmidx $dst, $src, $src2 PSEUDO", []>;
+/*--------------------------------*/
+/* function calling and globals   */
+/*--------------------------------*/
+
+let isTerminator = 1, isReturn = 1, isBarrier = 1 in {
+    def RET     : P2Inst<0b1101011, (outs), (ins), "ret", [(P2RET)]>;
+}
+
+let isCall = 1, Uses = [SP] in {
+    def CALL    : P2Inst<0b1101101, (outs), (ins calltarget:$addr), "call #$addr", []>;
+}
+
+let Defs = [SP], Uses = [SP] in {
+    def ADJCALLSTACKDOWN    : Pseudo<(outs), (ins i32imm:$amt, i32imm:$amt2), "ADJCALLSTACKDOWN", [(P2callseq_start timm:$amt, timm:$amt2)]>;
+    def ADJCALLSTACKUP      : Pseudo<(outs), (ins i32imm:$amt1, i32imm:$amt2), "ADJCALLSTACKUP", [(P2callseq_end timm:$amt1, timm:$amt2)]>;
+}
+
+def : Pat<(P2GAWrapper tglobaladdr:$addr), (MOVri tglobaladdr:$addr)>;
+def : Pat<(P2CALL (i32 tglobaladdr:$dst)), (CALL tglobaladdr:$dst)>;
+def : Pat<(P2CALL (i32 texternalsym:$dst)), (CALL texternalsym:$dst)>;
+
+/*--------------------------------*/
+/* misc instructions              */
+/*--------------------------------*/
+def NOP         : P2Inst<0b0000000, (outs), (ins), "nop", []>;
+def AUGS        : P2Inst<0b1111000, (outs), (ins i32imm:$n), "augs #$n", []>;
+def AUGD        : P2Inst<0b1111100, (outs), (ins i32imm:$n), "augd #$n", []>;
+
+def FRMIDX      : Pseudo<(outs P2GPR:$dst), (ins P2GPR:$src, i32imm:$src2), "frmidx $dst, $src, $src2", []>;

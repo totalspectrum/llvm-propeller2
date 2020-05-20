@@ -14,6 +14,7 @@
 #include "P2FrameLowering.h"
 
 #include "P2InstrInfo.h"
+#include "P2TargetMachine.h"
 #include "P2MachineFunctionInfo.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -25,6 +26,8 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Target/TargetOptions.h"
 
+#define DEBUG_TYPE "p2-frame-lower"
+
 using namespace llvm;
 
 // hasFP - Return true if the specified function should have a dedicated frame
@@ -32,11 +35,12 @@ using namespace llvm;
 // if it needs dynamic stack realignment, if frame pointer elimination is
 // disabled, or if the frame address is taken.
 bool P2FrameLowering::hasFP(const MachineFunction &MF) const {
-    //return MF.getTarget().Options.DisableFramePointerElim(MF) || MFI->isFrameAddressTaken() || TRI->needsStackRealignment(MF);
+    const MachineFrameInfo *MFI = &MF.getFrameInfo();
+    const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
 
-    // return (FuncInfo->getHasSpills() || FuncInfo->getHasAllocas() || FuncInfo->getHasStackArgs());
-    // TODO: implement this for real
-    return false;
+  return MF.getTarget().Options.DisableFramePointerElim(MF) ||
+        MFI->hasVarSizedObjects() || MFI->isFrameAddressTaken() ||
+        TRI->needsStackRealignment(MF);
 }
 
 void P2FrameLowering::emitPrologue(MachineFunction &MF,
@@ -45,4 +49,21 @@ void P2FrameLowering::emitPrologue(MachineFunction &MF,
 
 void P2FrameLowering::emitEpilogue(MachineFunction &MF,
                                  MachineBasicBlock &MBB) const {
+}
+
+MachineBasicBlock::iterator P2FrameLowering::eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
+                                MachineBasicBlock::iterator I) const {
+
+    if (!hasReservedCallFrame(MF)) {
+        int64_t Amount = I->getOperand(0).getImm();
+
+        if (I->getOpcode() == P2::ADJCALLSTACKDOWN)
+            Amount = -Amount;
+
+        tm.getInstrInfo()->adjustStackPtr(P2::SP, Amount, MBB, I);
+    }
+
+    LLVM_DEBUG(errs() << "eliminate call frame pseudo\n");
+
+    return MBB.erase(I);
 }
