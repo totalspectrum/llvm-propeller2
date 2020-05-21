@@ -29,7 +29,7 @@ using namespace llvm;
 void P2InstrInfo::anchor() {}
 
 //@P2InstrInfo {
-P2InstrInfo::P2InstrInfo() : P2GenInstrInfo(P2::ADJCALLSTACKDOWN, P2::ADJCALLSTACKUP), RI() {}
+P2InstrInfo::P2InstrInfo() : P2GenInstrInfo(P2::ADJCALLSTACKUP, P2::ADJCALLSTACKDOWN), RI() {}
 
 void P2InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                         MachineBasicBlock::iterator MI,
@@ -63,8 +63,7 @@ void P2InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                MachineBasicBlock::iterator MI,
                                const DebugLoc &DL, MCRegister DestReg,
                                MCRegister SrcReg, bool KillSrc) const {
-    BuildMI(MBB, MI, DL, get(P2::MOVrr))
-        .addReg(DestReg)
+    BuildMI(MBB, MI, DL, get(P2::MOVrr), DestReg)
         .addReg(SrcReg, getKillRegState(KillSrc));
 }
 

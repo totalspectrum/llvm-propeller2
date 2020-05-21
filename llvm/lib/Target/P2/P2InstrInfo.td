@@ -127,8 +127,8 @@ let isCall = 1, Uses = [SP] in {
 }
 
 let Defs = [SP], Uses = [SP] in {
-    def ADJCALLSTACKDOWN    : Pseudo<(outs), (ins i32imm:$amt, i32imm:$amt2), "ADJCALLSTACKDOWN", [(P2callseq_start timm:$amt, timm:$amt2)]>;
-    def ADJCALLSTACKUP      : Pseudo<(outs), (ins i32imm:$amt1, i32imm:$amt2), "ADJCALLSTACKUP", [(P2callseq_end timm:$amt1, timm:$amt2)]>;
+    def ADJCALLSTACKUP      : Pseudo<(outs), (ins i32imm:$amt1, i32imm:$amt2), "ADJCALLSTACKUP", [(P2callseq_start timm:$amt1, timm:$amt2)]>;
+    def ADJCALLSTACKDOWN    : Pseudo<(outs), (ins i32imm:$amt, i32imm:$amt2), "ADJCALLSTACKDOWN", [(P2callseq_end timm:$amt, timm:$amt2)]>;
 }
 
 def : Pat<(P2GAWrapper tglobaladdr:$addr), (MOVri tglobaladdr:$addr)>;

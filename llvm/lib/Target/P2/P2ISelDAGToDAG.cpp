@@ -35,7 +35,7 @@
 #include "llvm/Target/TargetMachine.h"
 using namespace llvm;
 
-#define DEBUG_TYPE "P2-isel"
+#define DEBUG_TYPE "p2-isel"
 
 //===----------------------------------------------------------------------===//
 // Instruction Selector Implementation
@@ -54,10 +54,10 @@ void P2DAGToDAGISel::Select(SDNode *N) {
     unsigned Opcode = N->getOpcode();
 
     // Dump information about the Node being selected
-    LLVM_DEBUG(errs() << "<-------->");
+    LLVM_DEBUG(errs() << "<-------->\n");
     LLVM_DEBUG(errs() << "Selecting: "; N->dump(CurDAG); errs() << "\n");
 
-    // If we have a custom node, we already have selected!
+    // this is already a machine op
     if (N->isMachineOpcode()) {
         LLVM_DEBUG(errs() << "== "; N->dump(CurDAG); errs() << "\n");
         N->setNodeId(-1);

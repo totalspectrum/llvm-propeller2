@@ -47,6 +47,8 @@ Cog memory is 512 longs. The last 16 are special registers (0x1f0 - 0x1ff, so we
 ### Stack
 We'll need a stack for calling functions, etc. The first 256 longs of the look-up RAM will be a fixed stack for calls and such. So, the stack starts at 0x0 and grows up to 0x0ff. Initially we'll just use HUB RAM so that a typical architecture's load/store instructions can translate directly to rdlong/wrlong for memory read/writes, but eventually we'll add distinction between memories so that stack operatiosn use rdlut/wrlut, and normal memory operations needing the hub RAM will use rdlong/wrlong.
 
+The stack is organized starting at address 0x00000 (since the cog can't exectute from that hub address so it doesn't take up program space to use it) and can continue to 0x001ff before begining to use program space. The stack will always grow up and each frame grows up within the stack. We won't have a distinct frame pointer, in each frame we should read in the current stack pointer and offset it locally to the desired stack slot.
+
 The remaining cog RAM should be used as a cache for loops, common functions, any math functions we want a fast implementation of, etc. Eventually, there should be a way to specify a function or variable to be cached in cog RAM so it never needs to be fetched from the hub. This will likely need a clang extension.
 
 ## Calling Convention

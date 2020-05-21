@@ -4,16 +4,11 @@
     ../build/bin/llc -march=p2 -filetype=obj -debug test5.ll -o test5.o
 */
 
-int sum(int a, int b) {
-    return a + b;
+int sum(int a, int b, int c, int d, int e) {
+    return a + b + c + d + e;
 }
 
-int c = 10;
-
 int main() {
-    // int a = 2;
-    // int b = a + c;
-
-    int d = 0;sum(2, 4);
+    int d = sum(1, 2, 3, 4, 5);
     return d;
 }

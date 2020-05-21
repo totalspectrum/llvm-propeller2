@@ -3,19 +3,29 @@ source_filename = "test5.cpp"
 target datalayout = "e-p:32:32-i32:32"
 target triple = "p2"
 
-@c = dso_local global i32 10, align 4
-
 ; Function Attrs: noinline nounwind optnone
-define dso_local i32 @_Z3sumii(i32 %a, i32 %b) #0 {
+define dso_local i32 @_Z3sumiiiii(i32 %a, i32 %b, i32 %c, i32 %d, i32 %e) #0 {
 entry:
   %a.addr = alloca i32, align 4
   %b.addr = alloca i32, align 4
+  %c.addr = alloca i32, align 4
+  %d.addr = alloca i32, align 4
+  %e.addr = alloca i32, align 4
   store i32 %a, i32* %a.addr, align 4
   store i32 %b, i32* %b.addr, align 4
+  store i32 %c, i32* %c.addr, align 4
+  store i32 %d, i32* %d.addr, align 4
+  store i32 %e, i32* %e.addr, align 4
   %0 = load i32, i32* %a.addr, align 4
   %1 = load i32, i32* %b.addr, align 4
   %add = add nsw i32 %0, %1
-  ret i32 %add
+  %2 = load i32, i32* %c.addr, align 4
+  %add1 = add nsw i32 %add, %2
+  %3 = load i32, i32* %d.addr, align 4
+  %add2 = add nsw i32 %add1, %3
+  %4 = load i32, i32* %e.addr, align 4
+  %add3 = add nsw i32 %add2, %4
+  ret i32 %add3
 }
 
 ; Function Attrs: noinline norecurse nounwind optnone
@@ -24,7 +34,7 @@ entry:
   %retval = alloca i32, align 4
   %d = alloca i32, align 4
   store i32 0, i32* %retval, align 4
-  %call = call i32 @_Z3sumii(i32 2, i32 4)
+  %call = call i32 @_Z3sumiiiii(i32 1, i32 2, i32 3, i32 4, i32 5)
   store i32 %call, i32* %d, align 4
   %0 = load i32, i32* %d, align 4
   ret i32 %0
@@ -37,4 +47,4 @@ attributes #1 = { noinline norecurse nounwind optnone "correctly-rounded-divide-
 !llvm.ident = !{!1}
 
 !0 = !{i32 1, !"wchar_size", i32 4}
-!1 = !{!"clang version 11.0.0 (https://github.com/ne75/llvm-propeller2.git 14f814c5cfab3ec8fa7fe17a214cdb51c04ca235)"}
+!1 = !{!"clang version 11.0.0 (https://github.com/ne75/llvm-propeller2.git 18a7aff8960a14bc35064548075716e6fe921e92)"}

@@ -33,9 +33,14 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
+/*
+it feels like there's a lot of redundant code here, so we should dig through what ever piece does and clean things up
+
+*/
+
 using namespace llvm;
 
-#define DEBUG_TYPE "p2-lower"
+#define DEBUG_TYPE "p2-isel-lower"
 
 // addLiveIn - This helper function adds the specified physical register to the
 // MachineFunction as a live in value.  It also creates a corresponding
@@ -47,8 +52,8 @@ static unsigned addLiveIn(MachineFunction &MF, unsigned PReg, const TargetRegist
 }
 
 // Passed first four i32 arguments in registers and others in stack.
-static bool CC_P2_O32(unsigned ValNo, MVT ValVT, MVT LocVT, CCValAssign::LocInfo LocInfo, ISD::ArgFlagsTy ArgFlags, CCState &State) {
-    static const MCPhysReg IntRegs[] = {P2::R0, P2::R1, P2::R3, P2::R4};
+static bool CC_P2_args(unsigned ValNo, MVT ValVT, MVT LocVT, CCValAssign::LocInfo LocInfo, ISD::ArgFlagsTy ArgFlags, CCState &State) {
+    static const MCPhysReg IntRegs[] = {P2::R0, P2::R1, P2::R2, P2::R3};
 
     // Do not process byval args here.
     if (ArgFlags.isByVal())
@@ -95,6 +100,7 @@ static bool CC_P2_O32(unsigned ValNo, MVT ValVT, MVT LocVT, CCValAssign::LocInfo
 
     if (!Reg) {
         unsigned Offset = State.AllocateStack(ValVT.getSizeInBits() >> 3, OrigAlign);
+        LLVM_DEBUG(errs() << "allocating stack space for argument, offset = " << Offset << "\n");
         State.addLoc(CCValAssign::getMem(ValNo, ValVT, Offset, LocVT, LocInfo));
     } else {
         State.addLoc(CCValAssign::getReg(ValNo, ValVT, Reg, LocVT, LocInfo));
@@ -178,15 +184,17 @@ SDValue P2TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     // Get a count of how many bytes are to be pushed on the stack.
     unsigned NextStackOffset = CCInfo.getNextStackOffset();
 
+    LLVM_DEBUG(errs() << "calling function. next stack offset is " << NextStackOffset << "\n");
+
     // Chain is the output chain of the last Load/Store or CopyToReg node.
     // ByValChain is the output chain of the last Memcpy node created for copying
     // byval arguments to the stack.
     unsigned StackAlignment = TFL->getStackAlignment();
     NextStackOffset = alignTo(NextStackOffset, StackAlignment);
     //SDValue NextStackOffsetVal = DAG.getIntPtrConstant(NextStackOffset, DL, true);
-    unsigned NextStackOffsetVal = CCInfo.getNextStackOffset();
+    //unsigned NextStackOffsetVal = CCInfo.getNextStackOffset();
 
-    Chain = DAG.getCALLSEQ_START(Chain, NextStackOffsetVal, 0, DL);
+    Chain = DAG.getCALLSEQ_START(Chain, NextStackOffset, 0, DL);
 
     SDValue StackPtr = DAG.getCopyFromReg(Chain, DL, P2::SP, getPointerTy(DAG.getDataLayout()));
 
@@ -277,7 +285,7 @@ SDValue P2TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     SDValue InFlag = Chain.getValue(1);
 
     // Create the CALLSEQ_END node.
-    Chain = DAG.getCALLSEQ_END(Chain, DAG.getIntPtrConstant(NextStackOffsetVal, DL, true), DAG.getIntPtrConstant(0, DL, true), InFlag, DL);
+    Chain = DAG.getCALLSEQ_END(Chain, DAG.getIntPtrConstant(NextStackOffset, DL, true), DAG.getIntPtrConstant(0, DL, true), InFlag, DL);
     InFlag = Chain.getValue(1);
 
     // Handle result values, copying them out of physregs into vregs that we
@@ -313,7 +321,6 @@ SDValue P2TargetLowering::LowerCallResult(SDValue Chain, SDValue InFlag,
             // Transform the arguments stored on
             // physical registers into virtual ones
             DAG.getMachineFunction().getRegInfo().addLiveIn(VA.getLocReg());
-            //addLiveIn(DAG.getMachineFunction(), VA.getLocReg(), RC);
             RetValue = DAG.getCopyFromReg(Chain, dl, VA.getLocReg(), VA.getValVT(), InFlag);
             InVals.push_back(RetValue);
 
@@ -345,7 +352,7 @@ SDValue P2TargetLowering::LowerCallResult(SDValue Chain, SDValue InFlag,
     if (!MemOpChains.empty())
         Chain = DAG.getNode(ISD::TokenFactor, dl, MVT::Other, MemOpChains);
 
-  return Chain;
+    return Chain;
 
 }
 
@@ -433,7 +440,7 @@ P2TargetLowering::LowerFormalArguments(SDValue Chain,
                 ArgValue = DAG.getNode(ISD::BITCAST, DL, ValVT, ArgValue);
 
             InVals.push_back(ArgValue);
-        } else { // VA.isRegLoc()
+        } else {
             MVT LocVT = VA.getLocVT();
 
             // sanity check
@@ -499,14 +506,14 @@ void P2TargetLowering::getOpndList(SmallVectorImpl<SDValue> &Ops,
             std::deque< std::pair<unsigned, SDValue> > &RegsToPass,
             bool IsPICCall, bool GlobalOrExternal, bool InternalLinkage,
             CallLoweringInfo &CLI, SDValue Callee, SDValue Chain) const {
-  // T9 should contain the address of the callee function if
-  // -reloction-model=pic or it is an indirect call.
-  // figure out what T9 is and if we need to make an equivalint
+    // T9 should contain the address of the callee function if
+    // -reloction-model=pic or it is an indirect call.
+    // figure out what T9 is and if we need to make an equivalint
 
-  // if (IsPICCall || !GlobalOrExternal) {
-  //   unsigned T9Reg = P2::T9;
-  //   RegsToPass.push_front(std::make_pair(T9Reg, Callee));
-  // } else
+    // if (IsPICCall || !GlobalOrExternal) {
+    //   unsigned T9Reg = P2::T9;
+    //   RegsToPass.push_front(std::make_pair(T9Reg, Callee));
+    // } else
 
     Ops.push_back(Callee);
 
@@ -915,11 +922,11 @@ const ArrayRef<MCPhysReg> P2TargetLowering::P2CC::intArgRegs() const {
 }
 
 llvm::CCAssignFn *P2TargetLowering::P2CC::fixedArgFn() const {
-    return CC_P2_O32;
+    return CC_P2_args;
 }
 
 llvm::CCAssignFn *P2TargetLowering::P2CC::varArgFn() const {
-    return CC_P2_O32;
+    return CC_P2_args;
 }
 
 unsigned P2TargetLowering::P2CC::reservedArgArea() const {
