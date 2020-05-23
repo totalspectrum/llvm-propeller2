@@ -33,6 +33,10 @@ def calltarget : Operand<iPTR> {
     let EncoderMethod = "encodeCallTarget";
 }
 
+def NegateImm : SDNodeXForm<imm, [{return CurDAG->getConstant(-N->getSExtValue(), SDLoc(N), MVT::i32);}]>;
+
+def NegSubInlineConst32 : ImmLeaf<i32, [{return Imm < 0;}], NegateImm>;
+
 /*--------------------------------*/
 /* custom nodes                   */
 /*--------------------------------*/
@@ -143,3 +147,11 @@ def AUGS        : P2Inst<0b1111000, (outs), (ins i32imm:$n), "augs #$n", []>;
 def AUGD        : P2Inst<0b1111100, (outs), (ins i32imm:$n), "augd #$n", []>;
 
 def FRMIDX      : Pseudo<(outs P2GPR:$dst), (ins P2GPR:$src, i32imm:$src2), "frmidx $dst, $src, $src2", []>;
+
+/*--------------------------------*/
+/* Optimization patterns and such */
+/*--------------------------------*/
+
+// convert add -c to sub c
+// def : Pat<(add i32:$src0, (i32 NegSubInlineConst32:$src1)),
+//             (SUBri $src0, NegSubInlineConst32:$src1)>;

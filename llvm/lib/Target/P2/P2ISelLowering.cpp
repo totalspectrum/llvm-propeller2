@@ -36,6 +36,13 @@
 /*
 it feels like there's a lot of redundant code here, so we should dig through what ever piece does and clean things up
 
+How function calling works:
+
+1. LowerCall is used to copy arguments to there destination registers/stack space
+2. LowerFormalArguments is used to copy passed argument by the callee into the callee's stack frame
+3. LowerReturn is used to copy the return value to r15 or the stack
+4. LowerCallResult used to copy the return value out of r15 or the stack into the caller's space
+
 */
 
 using namespace llvm;
@@ -51,63 +58,46 @@ static unsigned addLiveIn(MachineFunction &MF, unsigned PReg, const TargetRegist
     return VReg;
 }
 
-// Passed first four i32 arguments in registers and others in stack.
-static bool CC_P2_args(unsigned ValNo, MVT ValVT, MVT LocVT, CCValAssign::LocInfo LocInfo, ISD::ArgFlagsTy ArgFlags, CCState &State) {
-    static const MCPhysReg IntRegs[] = {P2::R0, P2::R1, P2::R2, P2::R3};
+// // Passed first four i32 arguments in registers and others in stack.
+// static bool analyzeCallArg(unsigned ValNo, MVT ValVT, CCValAssign::LocInfo LocInfo, ISD::ArgFlagsTy ArgFlags, CCState &State) {
+//     static const MCPhysReg IntRegs[] = {P2::R0, P2::R1, P2::R2, P2::R3};
 
-    // Do not process byval args here.
-    if (ArgFlags.isByVal())
-        return true;
+//     LLVM_DEBUG(errs() << "analyzing argument in call\n");
 
-    // Promote i8 and i16
-    if (LocVT == MVT::i8 || LocVT == MVT::i16) {
-        LocVT = MVT::i32;
-        if (ArgFlags.isSExt())
-            LocInfo = CCValAssign::SExt;
-        else if (ArgFlags.isZExt())
-            LocInfo = CCValAssign::ZExt;
-        else
-            LocInfo = CCValAssign::AExt;
-    }
+//     // Do not process byval args here.
+//     if (ArgFlags.isByVal())
+//         return true;
 
-    unsigned Reg;
+//     unsigned Reg;
 
-    // f32 and f64 are allocated in R0, R1 when either of the following
-    // is true: function is vararg, argument is 3rd or higher, there is previous
-    // argument which is not f32 or f64.
-    bool AllocateFloatsInIntReg = true;
-    unsigned OrigAlign = ArgFlags.getOrigAlign();
-    bool isI64 = (ValVT == MVT::i32 && OrigAlign == 8);
+//     // f32 and f64 are allocated in R0, R1 when either of the following
+//     // is true: function is vararg, argument is 3rd or higher, there is previous
+//     // argument which is not f32 or f64.
+//     bool AllocateFloatsInIntReg = true;
+//     unsigned OrigAlign = ArgFlags.getOrigAlign();
+//     bool isI64 = (ValVT == MVT::i32 && OrigAlign == 8);
 
-    if (ValVT == MVT::i32 || (ValVT == MVT::f32 && AllocateFloatsInIntReg)) {
-        Reg = State.AllocateReg(IntRegs);
-        // If this is the first part of an i64 arg,
-        // the allocated register must be R0.
-        if (isI64 && (Reg == P2::R1))
-            Reg = State.AllocateReg(IntRegs);
+//     if (ValVT == MVT::i32 || (ValVT == MVT::f32 && AllocateFloatsInIntReg)) {
+//         Reg = State.AllocateReg(IntRegs);
+//         // If this is the first part of an i64 arg,
+//         // the allocated register must be R0.
+//         if (isI64 && (Reg == P2::R1))
+//             Reg = State.AllocateReg(IntRegs);
 
-        LocVT = MVT::i32;
-    } else if (ValVT == MVT::f64 && AllocateFloatsInIntReg) {
-        // Allocate int register. If first available register is P2::R1, shadow it too.
-        Reg = State.AllocateReg(IntRegs);
-        if (Reg == P2::R1)
-            Reg = State.AllocateReg(IntRegs);
+//     } else {
+//         llvm_unreachable("Can't handle this ValVT!");
+//     }
 
-        State.AllocateReg(IntRegs);
-        LocVT = MVT::i32;
-    } else
-        llvm_unreachable("Cannot handle this ValVT.");
+//     if (!Reg) {
+//         unsigned Offset = State.AllocateStack(ValVT.getSizeInBits() >> 3, OrigAlign);
+//         LLVM_DEBUG(errs() << "allocating stack space for argument, offset = " << Offset << "\n");
+//         State.addLoc(CCValAssign::getMem(ValNo, ValVT, Offset, ValVT, LocInfo));
+//     } else {
+//         State.addLoc(CCValAssign::getReg(ValNo, ValVT, Reg, ValVT, LocInfo));
+//     }
 
-    if (!Reg) {
-        unsigned Offset = State.AllocateStack(ValVT.getSizeInBits() >> 3, OrigAlign);
-        LLVM_DEBUG(errs() << "allocating stack space for argument, offset = " << Offset << "\n");
-        State.addLoc(CCValAssign::getMem(ValNo, ValVT, Offset, LocVT, LocInfo));
-    } else {
-        State.addLoc(CCValAssign::getReg(ValNo, ValVT, Reg, LocVT, LocInfo));
-    }
-
-    return false;
-}
+//     return false;
+// }
 
 const char *P2TargetLowering::getTargetNodeName(unsigned Opcode) const {
 
@@ -145,15 +135,23 @@ SDValue P2TargetLowering::lowerGlobalAddress(SDValue Op, SelectionDAG &DAG) cons
 #include "P2GenCallingConv.inc"
 
 //===----------------------------------------------------------------------===//
-//                  Call Calling Convention Implementation
+//                  CALL Calling Convention Implementation
 //===----------------------------------------------------------------------===//
+
+SDValue P2TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
+    switch (Op.getOpcode()) {
+        case ISD::GlobalAddress:
+            return lowerGlobalAddress(Op, DAG);
+    }
+    return SDValue();
+}
 
 static const MCPhysReg O32IntRegs[] = {
     P2::R0, P2::R1, P2::R2, P2::R3
 };
 
 /// LowerCall - functions arguments are copied from virtual regs to
-/// (physical regs)/(stack frame), CALLSEQ_START and CALLSEQ_END are emitted.
+/// physical regs and/or the stack frame, CALLSEQ_START and CALLSEQ_END are emitted.
 SDValue P2TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
                               SmallVectorImpl<SDValue> &InVals) const {
     SelectionDAG &DAG                     = CLI.DAG;
@@ -163,7 +161,6 @@ SDValue P2TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     SmallVectorImpl<ISD::InputArg> &Ins   = CLI.Ins;
     SDValue Chain                         = CLI.Chain;
     SDValue Callee                        = CLI.Callee;
-    bool &IsTailCall                      = CLI.IsTailCall;
     CallingConv::ID CallConv              = CLI.CallConv;
     bool IsVarArg                         = CLI.IsVarArg;
 
@@ -176,48 +173,34 @@ SDValue P2TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     // Analyze operands of the call, assigning locations to each operand.
     SmallVector<CCValAssign, 16> ArgLocs;
     CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), ArgLocs, *DAG.getContext());
-    P2CC::SpecialCallingConvType SpecialCallingConv = getSpecialCallingConv(Callee);
-    P2CC P2CCInfo(CallConv, CCInfo, SpecialCallingConv);
-
-    P2CCInfo.analyzeCallOperands(Outs, IsVarArg, true, Callee.getNode(), CLI.getArgs());
+    CCInfo.AnalyzeCallOperands(Outs, CC_P2);
 
     // Get a count of how many bytes are to be pushed on the stack.
     unsigned NextStackOffset = CCInfo.getNextStackOffset();
 
-    LLVM_DEBUG(errs() << "calling function. next stack offset is " << NextStackOffset << "\n");
+    LLVM_DEBUG(errs() << "Calling function. next stack offset is " << NextStackOffset << "\n");
 
     // Chain is the output chain of the last Load/Store or CopyToReg node.
-    // ByValChain is the output chain of the last Memcpy node created for copying
-    // byval arguments to the stack.
     unsigned StackAlignment = TFL->getStackAlignment();
     NextStackOffset = alignTo(NextStackOffset, StackAlignment);
-    //SDValue NextStackOffsetVal = DAG.getIntPtrConstant(NextStackOffset, DL, true);
-    //unsigned NextStackOffsetVal = CCInfo.getNextStackOffset();
 
+    // start the call sequence.
     Chain = DAG.getCALLSEQ_START(Chain, NextStackOffset, 0, DL);
 
+    // get the current stack pointer value
     SDValue StackPtr = DAG.getCopyFromReg(Chain, DL, P2::SP, getPointerTy(DAG.getDataLayout()));
 
     // we have 4 args on registers
     std::deque<std::pair<unsigned, SDValue>> RegsToPass;
     SmallVector<SDValue, 8> MemOpChains;
-    P2CC::byval_iterator ByValArg = P2CCInfo.byval_begin();
 
-    // Walk the register/memloc assignments, inserting copies/loads.
-    for (unsigned i = 0, e = ArgLocs.size(); i != e; ++i) {
+    // iterate over the argument locations.
+    // at each location, push a reg/value pair onto RegsToPass, promoting the type if needed.
+    for (unsigned i = 0; i < ArgLocs.size(); i++) {
         SDValue Arg = OutVals[i];
         CCValAssign &VA = ArgLocs[i];
         MVT LocVT = VA.getLocVT();
         ISD::ArgFlagsTy Flags = Outs[i].Flags;
-
-        if (Flags.isByVal()) {
-            assert(Flags.getByValSize() && "ByVal args of size 0 should have been ignored by front-end.");
-            assert(ByValArg != P2CCInfo.byval_end());
-            assert(!IsTailCall && "Do not tail-call optimize if there is a byval argument.");
-            passByValArg(Chain, DL, RegsToPass, MemOpChains, StackPtr, MFI, DAG, Arg, P2CCInfo, *ByValArg, Flags);
-            ++ByValArg;
-            continue;
-        }
 
         // Promote the value if needed.
         switch (VA.getLocInfo()) {
@@ -239,15 +222,23 @@ SDValue P2TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
         // RegsToPass vector
         if (VA.isRegLoc()) {
             RegsToPass.push_back(std::make_pair(VA.getLocReg(), Arg));
-            continue;
+        } else {
+            // Register can't get to this point...
+            assert(VA.isMemLoc());
+
+            SDValue PtrOff;
+            int off = VA.getLocMemOffset()-4; // -4 because current SP is free
+
+            LLVM_DEBUG(errs() << "offset is " << off << "\n");
+
+            // if (off < 0) {
+            PtrOff = DAG.getNode(ISD::SUB, DL, getPointerTy(DAG.getDataLayout()), StackPtr, DAG.getIntPtrConstant(-off, DL));
+            // } else {
+            //    PtrOff = DAG.getNode(ISD::ADD, DL, getPointerTy(DAG.getDataLayout()), StackPtr, DAG.getIntPtrConstant(off, DL));
+            //}
+
+            MemOpChains.push_back(DAG.getStore(Chain, DL, Arg, PtrOff, MachinePointerInfo()));
         }
-
-        // Register can't get to this point...
-        assert(VA.isMemLoc());
-
-        // emit ISD::STORE whichs stores the
-        // parameter value to a stack Location
-        MemOpChains.push_back(passArgOnStack(StackPtr, VA.getLocMemOffset(), Chain, Arg, DL, IsTailCall, DAG));
     }
 
     // Transform all store nodes into one single node because all store
@@ -276,15 +267,14 @@ SDValue P2TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     SmallVector<SDValue, 8> Ops(1, Chain);
     SDVTList NodeTys = DAG.getVTList(MVT::Other, MVT::Glue);
 
+    // buit the list of CopyToReg operations.
     getOpndList(Ops, RegsToPass, false, GlobalOrExternal, InternalLinkage, CLI, Callee, Chain);
 
-    // if (IsTailCall)
-    //     return DAG.getNode(P2ISD::TailCall, DL, MVT::Other, Ops);
-
+    // call the function
     Chain = DAG.getNode(P2ISD::CALL, DL, NodeTys, Ops);
     SDValue InFlag = Chain.getValue(1);
 
-    // Create the CALLSEQ_END node.
+    // end teh call sequence
     Chain = DAG.getCALLSEQ_END(Chain, DAG.getIntPtrConstant(NextStackOffset, DL, true), DAG.getIntPtrConstant(0, DL, true), InFlag, DL);
     InFlag = Chain.getValue(1);
 
@@ -305,12 +295,10 @@ SDValue P2TargetLowering::LowerCallResult(SDValue Chain, SDValue InFlag,
     // Assign locations to each value returned by this call.
     SmallVector<CCValAssign, 16> RVLocs;
     CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), RVLocs, *DAG.getContext());
-
-    P2CC P2CCInfo(CallConv, CCInfo);
-
-    P2CCInfo.analyzeCallResult(Ins, true, CallNode, RetTy);
+    CCInfo.AnalyzeCallResult(Ins, RetCC_P2);
 
     SmallVector<std::pair<int, unsigned>, 4> ResultMemLocs;
+
     // Copy results out of physical registers.
     for (unsigned i = 0, e = RVLocs.size(); i != e; ++i) {
         const CCValAssign &VA = RVLocs[i];
@@ -328,29 +316,14 @@ SDValue P2TargetLowering::LowerCallResult(SDValue Chain, SDValue InFlag,
             InFlag = RetValue.getValue(2);
         } else {
             assert(VA.isMemLoc() && "Must be memory location.");
-            ResultMemLocs.push_back(std::make_pair(VA.getLocMemOffset(), InVals.size()));
-
-            // Reserve space for this result.
-            InVals.push_back(SDValue());
+            llvm_unreachable("returning values via memory not yet supported!");
         }
-    }
-
-    // Copy results out of memory.
-    SmallVector<SDValue, 4> MemOpChains;
-    for (unsigned i = 0, e = ResultMemLocs.size(); i != e; ++i) {
-        int Offset = ResultMemLocs[i].first;
-        unsigned Index = ResultMemLocs[i].second;
-        SDValue StackPtr = DAG.getRegister(P2::SP, MVT::i32);
-        SDValue SpLoc = DAG.getNode(ISD::ADD, dl, MVT::i32, StackPtr, DAG.getConstant(Offset, dl, MVT::i32));
-        SDValue Load = DAG.getLoad(MVT::i32, dl, Chain, SpLoc, MachinePointerInfo());
-        InVals[Index] = Load;
-        MemOpChains.push_back(Load.getValue(1));
     }
 
     // Transform all loads nodes into one single node because
     // all load nodes are independent of each other.
-    if (!MemOpChains.empty())
-        Chain = DAG.getNode(ISD::TokenFactor, dl, MVT::Other, MemOpChains);
+    // if (!MemOpChains.empty())
+    //     Chain = DAG.getNode(ISD::TokenFactor, dl, MVT::Other, MemOpChains);
 
     return Chain;
 
@@ -358,65 +331,42 @@ SDValue P2TargetLowering::LowerCallResult(SDValue Chain, SDValue InFlag,
 
 /// LowerFormalArguments - transform physical registers into virtual registers
 /// and generate load operations for arguments places on the stack.
-SDValue
-P2TargetLowering::LowerFormalArguments(SDValue Chain,
-                                         CallingConv::ID CallConv,
-                                         bool IsVarArg,
-                                         const SmallVectorImpl<ISD::InputArg> &Ins,
-                                         const SDLoc &DL, SelectionDAG &DAG,
-                                         SmallVectorImpl<SDValue> &InVals)
-                                          const {
+SDValue P2TargetLowering::LowerFormalArguments(SDValue Chain,
+                                                CallingConv::ID CallConv,
+                                                bool IsVarArg,
+                                                const SmallVectorImpl<ISD::InputArg> &Ins,
+                                                const SDLoc &DL, SelectionDAG &DAG,
+                                                SmallVectorImpl<SDValue> &InVals) const {
     MachineFunction &MF = DAG.getMachineFunction();
     MachineFrameInfo *MFI = &MF.getFrameInfo();
     P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
 
-    P2FI->setVarArgsFrameIndex(0);
+    SmallVector<SDValue, 12> MemOpChains;
+    std::vector<SDValue> OutChains;
+
+    // P2FI->setVarArgsFrameIndex(0);
 
     // Assign locations to all of the incoming arguments.
     SmallVector<CCValAssign, 16> ArgLocs;
     CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), ArgLocs, *DAG.getContext());
-    P2CC P2CCInfo(CallConv, CCInfo);
-
-    Function::const_arg_iterator FuncArg = DAG.getMachineFunction().getFunction().arg_begin();
-    bool UseSoftFloat = true;
-
-    P2CCInfo.analyzeFormalArguments(Ins, UseSoftFloat, FuncArg);
-    P2FI->setFormalArgInfo(CCInfo.getNextStackOffset(), P2CCInfo.hasByValArg());
-
-    // Used with vargs to acumulate store chains.
-    std::vector<SDValue> OutChains;
+    CCInfo.AnalyzeFormalArguments(Ins, CC_P2);
 
     unsigned CurArgIdx = 0;
-    P2CC::byval_iterator ByValArg = P2CCInfo.byval_begin();
 
-    for (unsigned i = 0, e = ArgLocs.size(); i != e; ++i) {
+    // iterate over the argument locations and create copies to virtual registers
+    for (unsigned i = 0; i < ArgLocs.size(); i++) {
         CCValAssign &VA = ArgLocs[i];
-
-        if (Ins[i].isOrigArg()) {
-            std::advance(FuncArg, Ins[i].getOrigArgIndex() - CurArgIdx);
-            CurArgIdx = Ins[i].getOrigArgIndex();
-        }
-
         EVT ValVT = VA.getValVT();
         ISD::ArgFlagsTy Flags = Ins[i].Flags;
-        bool IsRegLoc = VA.isRegLoc();
-
-        if (Flags.isByVal()) {
-            assert(Flags.getByValSize() && "ByVal args of size 0 should have been ignored by front-end.");
-            assert(ByValArg != P2CCInfo.byval_end());
-            copyByValRegs(Chain, DL, OutChains, DAG, Flags, InVals, &*FuncArg, P2CCInfo, *ByValArg);
-            ++ByValArg;
-            continue;
-        }
 
         // Arguments stored on registers
-        if (IsRegLoc) {
+        if (VA.isRegLoc()) {
             MVT RegVT = VA.getLocVT();
             unsigned ArgReg = VA.getLocReg();
             const TargetRegisterClass *RC = getRegClassFor(RegVT);
 
-            // Transform the arguments stored on
-            // physical registers into virtual ones
+            // create a new virtual register for this frame and copy to it from
+            // the current argument register
             unsigned Reg = addLiveIn(DAG.getMachineFunction(), ArgReg, RC);
             SDValue ArgValue = DAG.getCopyFromReg(Chain, DL, Reg, RegVT);
 
@@ -425,55 +375,39 @@ P2TargetLowering::LowerFormalArguments(SDValue Chain,
             // truncate to the right size.
             if (VA.getLocInfo() != CCValAssign::Full) {
                 unsigned Opcode = 0;
-                if (VA.getLocInfo() == CCValAssign::SExt)
+                if (VA.getLocInfo() == CCValAssign::SExt) {
                     Opcode = ISD::AssertSext;
-                else if (VA.getLocInfo() == CCValAssign::ZExt)
+                } else if (VA.getLocInfo() == CCValAssign::ZExt) {
                     Opcode = ISD::AssertZext;
+                }
 
-                if (Opcode)
+                if (Opcode) {
                     ArgValue = DAG.getNode(Opcode, DL, RegVT, ArgValue, DAG.getValueType(ValVT));
+                }
+
                 ArgValue = DAG.getNode(ISD::TRUNCATE, DL, ValVT, ArgValue);
             }
-
-            // Handle floating point arguments passed in integer registers.
-            if ((RegVT == MVT::i32 && ValVT == MVT::f32) || (RegVT == MVT::i64 && ValVT == MVT::f64))
-                ArgValue = DAG.getNode(ISD::BITCAST, DL, ValVT, ArgValue);
-
             InVals.push_back(ArgValue);
         } else {
+            // arguments stored in memory
             MVT LocVT = VA.getLocVT();
 
             // sanity check
             assert(VA.isMemLoc());
 
-            // The stack pointer offset is relative to the caller stack frame.
-            int FI = MFI->CreateFixedObject(ValVT.getSizeInBits()/8, VA.getLocMemOffset(), true);
+            // Load the argument to a virtual register
+            unsigned ObjSize = VA.getLocVT().getStoreSize();
+            assert((ObjSize <= 4) && "Unhandled argument--object size > stack slot size (4 bytes)");
 
-            // Create load nodes to retrieve arguments from the stack
-            SDValue FIN = DAG.getFrameIndex(FI, getPointerTy(DAG.getDataLayout()));
-            SDValue Load = DAG.getLoad(LocVT, DL, Chain, FIN, MachinePointerInfo::getFixedStack(DAG.getMachineFunction(), FI));
-            InVals.push_back(Load);
-            OutChains.push_back(Load.getValue(1));
-        }
-    }
+            // Create the frame index object for this incoming parameter.
+            int FI = MFI->CreateFixedObject(ObjSize, VA.getLocMemOffset(), true);
 
-    for (unsigned i = 0, e = ArgLocs.size(); i != e; ++i) {
-        // The P2 ABIs for returning structs by value requires that we copy
-        // the sret argument into $R15 for the return. Save the argument into
-        // a virtual register so that we can access it from the return points.
+            // Create the SelectionDAG nodes corresponding to a load from this parameter
+            SDValue FIN = DAG.getFrameIndex(FI, MVT::i32);
+            SDValue ArgValue = DAG.getLoad(VA.getLocVT(), DL, Chain, FIN, MachinePointerInfo::getFixedStack(MF, FI));
 
-        // TODO update this doc string once we know what the hell it means for propeller
-
-        if (Ins[i].Flags.isSRet()) {
-            unsigned Reg = P2FI->getSRetReturnReg();
-            if (!Reg) {
-                Reg = MF.getRegInfo().createVirtualRegister(getRegClassFor(MVT::i32));
-                P2FI->setSRetReturnReg(Reg);
-            }
-
-            SDValue Copy = DAG.getCopyToReg(DAG.getEntryNode(), DL, Reg, InVals[i]);
-            Chain = DAG.getNode(ISD::TokenFactor, DL, MVT::Other, Copy, Chain);
-            break;
+            InVals.push_back(ArgValue);
+            OutChains.push_back(ArgValue.getValue(1));
         }
     }
 
@@ -487,46 +421,12 @@ P2TargetLowering::LowerFormalArguments(SDValue Chain,
     return Chain;
 }
 
-SDValue P2TargetLowering::passArgOnStack(SDValue StackPtr, unsigned Offset,
-                                   SDValue Chain, SDValue Arg, const SDLoc &DL,
-                                   bool IsTailCall, SelectionDAG &DAG) const {
-    if (!IsTailCall) {
-        SDValue PtrOff = DAG.getNode(ISD::ADD, DL, getPointerTy(DAG.getDataLayout()), StackPtr, DAG.getIntPtrConstant(Offset, DL));
-        return DAG.getStore(Chain, DL, Arg, PtrOff, MachinePointerInfo());
-    }
-
-    MachineFrameInfo *MFI = &DAG.getMachineFunction().getFrameInfo();
-    int FI = MFI->CreateFixedObject(Arg.getValueSizeInBits() / 8, Offset, false);
-    SDValue FIN = DAG.getFrameIndex(FI, getPointerTy(DAG.getDataLayout()));
-    return DAG.getStore(Chain, DL, Arg, FIN, MachinePointerInfo(),
-                      /* Alignment = */ 0, MachineMemOperand::MOVolatile);
-}
-
 void P2TargetLowering::getOpndList(SmallVectorImpl<SDValue> &Ops,
             std::deque< std::pair<unsigned, SDValue> > &RegsToPass,
             bool IsPICCall, bool GlobalOrExternal, bool InternalLinkage,
             CallLoweringInfo &CLI, SDValue Callee, SDValue Chain) const {
-    // T9 should contain the address of the callee function if
-    // -reloction-model=pic or it is an indirect call.
-    // figure out what T9 is and if we need to make an equivalint
-
-    // if (IsPICCall || !GlobalOrExternal) {
-    //   unsigned T9Reg = P2::T9;
-    //   RegsToPass.push_front(std::make_pair(T9Reg, Callee));
-    // } else
 
     Ops.push_back(Callee);
-
-    // Insert node "GP copy globalreg" before call to function.
-    //
-    // R_P2_CALL* operators (emitted when non-internal functions are called
-    // in PIC mode) allow symbols to be resolved via lazy binding.
-    // The lazy binding stub requires GP to point to the GOT.
-    // if (IsPICCall && !InternalLinkage) {
-    //   unsigned GPReg = P2::GP;
-    //   EVT Ty = MVT::i32;
-    //   RegsToPass.push_back(std::make_pair(GPReg, getGlobalReg(CLI.DAG, Ty)));
-    // }
 
     // Build a sequence of copy-to-reg nodes chained together with token
     // chain and flag operands which copy the outgoing args into registers.
@@ -544,41 +444,8 @@ void P2TargetLowering::getOpndList(SmallVectorImpl<SDValue> &Ops,
     for (unsigned i = 0, e = RegsToPass.size(); i != e; ++i)
         Ops.push_back(CLI.DAG.getRegister(RegsToPass[i].first, RegsToPass[i].second.getValueType()));
 
-    // Add a register mask operand representing the call-preserved registers.
-    // const TargetRegisterInfo *TRI = Subtarget.getRegisterInfo();
-    // const uint32_t *Mask = TRI->getCallPreservedMask(CLI.DAG.getMachineFunction(), CLI.CallConv);
-    // assert(Mask && "Missing call preserved mask for calling convention");
-    // Ops.push_back(CLI.DAG.getRegisterMask(Mask));
-
     if (InFlag.getNode())
         Ops.push_back(InFlag);
-}
-
-P2TargetLowering::P2CC::SpecialCallingConvType P2TargetLowering::getSpecialCallingConv(SDValue Callee) const {
-        P2CC::SpecialCallingConvType SpecialCallingConv = P2CC::NoSpecialCallingConv;
-
-    return SpecialCallingConv;
-}
-
-void P2TargetLowering::P2CC::allocateRegs(ByValArgInfo &ByVal, unsigned ByValSize, unsigned Align) {
-    unsigned RegSize = regSize(), NumIntArgRegs = numIntArgRegs();
-    const ArrayRef<MCPhysReg> IntArgRegs = intArgRegs();
-    assert(!(ByValSize % RegSize) && !(Align % RegSize) &&
-            "Byval argument's size and alignment should be a multiple of RegSize.");
-
-    ByVal.FirstIdx = CCInfo.getFirstUnallocated(IntArgRegs);
-
-    // If Align > RegSize, the first arg register must be even.
-    if ((Align > RegSize) && (ByVal.FirstIdx % 2)) {
-        CCInfo.AllocateReg(IntArgRegs[ByVal.FirstIdx]);
-        ++ByVal.FirstIdx;
-    }
-
-    // Mark the registers allocated.
-    for (unsigned I = ByVal.FirstIdx; ByValSize && (I < NumIntArgRegs);
-        ByValSize -= RegSize, ++I, ++ByVal.NumRegs)
-
-    CCInfo.AllocateReg(IntArgRegs[I]);
 }
 
 SDValue P2TargetLowering::LowerReturn(SDValue Chain,
@@ -594,10 +461,9 @@ SDValue P2TargetLowering::LowerReturn(SDValue Chain,
 
     // CCState - Info about the registers and stack slot.
     CCState CCInfo(CallConv, IsVarArg, MF, RVLocs, *DAG.getContext());
-    P2CC P2CCInfo(CallConv,CCInfo);
 
     // Analyze return values.
-    P2CCInfo.analyzeReturn(Outs, true, MF.getFunction().getReturnType());
+    CCInfo.AnalyzeReturn(Outs, RetCC_P2);
 
     SDValue Flag;
     SmallVector<SDValue, 4> RetOps(1, Chain);
@@ -618,25 +484,6 @@ SDValue P2TargetLowering::LowerReturn(SDValue Chain,
         RetOps.push_back(DAG.getRegister(VA.getLocReg(), VA.getLocVT()));
     }
 
-      // The P2 ABIs for returning structs by value requires that we copy
-      // the sret argument into $r15 for the return. We saved the argument into
-      // a virtual register in the entry block, so now we copy the value out
-      // and into $r15.
-    if (MF.getFunction().hasStructRetAttr()) {
-        P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
-        unsigned Reg = P2FI->getSRetReturnReg();
-
-        if (!Reg)
-            llvm_unreachable("sret virtual register not created in the entry block");
-
-        SDValue Val = DAG.getCopyFromReg(Chain, DL, Reg, getPointerTy(DAG.getDataLayout()));
-        unsigned R15 = P2::R15;
-
-        Chain = DAG.getCopyToReg(Chain, DL, R15, Val, Flag);
-        Flag = Chain.getValue(1);
-        RetOps.push_back(DAG.getRegister(R15, getPointerTy(DAG.getDataLayout())));
-    }
-
     RetOps[0] = Chain;  // Update chain.
 
     // Add the flag if we have it.
@@ -645,296 +492,4 @@ SDValue P2TargetLowering::LowerReturn(SDValue Chain,
 
     // Return on P2 is always a "ret"
     return DAG.getNode(P2ISD::RET, DL, MVT::Other, RetOps);
-}
-
-SDValue P2TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
-    switch (Op.getOpcode()) {
-        case ISD::GlobalAddress:
-            return lowerGlobalAddress(Op, DAG);
-    }
-    return SDValue();
-}
-
-void P2TargetLowering::copyByValRegs(SDValue Chain, const SDLoc &DL, std::vector<SDValue> &OutChains,
-              SelectionDAG &DAG, const ISD::ArgFlagsTy &Flags,
-              SmallVectorImpl<SDValue> &InVals, const Argument *FuncArg,
-              const P2CC &CC, const ByValArgInfo &ByVal) const {
-
-    MachineFunction &MF = DAG.getMachineFunction();
-    MachineFrameInfo *MFI = &MF.getFrameInfo();
-    unsigned RegAreaSize = ByVal.NumRegs * CC.regSize();
-    unsigned FrameObjSize = std::max(Flags.getByValSize(), RegAreaSize);
-    int FrameObjOffset;
-
-    const ArrayRef<MCPhysReg> ByValArgRegs = CC.intArgRegs();
-
-    if (RegAreaSize)
-        FrameObjOffset = (int)CC.reservedArgArea() - (int)((CC.numIntArgRegs() - ByVal.FirstIdx) * CC.regSize());
-    else
-        FrameObjOffset = ByVal.Address;
-
-    // Create frame object.
-    EVT PtrTy = getPointerTy(DAG.getDataLayout());
-    int FI = MFI->CreateFixedObject(FrameObjSize, FrameObjOffset, true);
-    SDValue FIN = DAG.getFrameIndex(FI, PtrTy);
-    InVals.push_back(FIN);
-
-    if (!ByVal.NumRegs)
-        return;
-
-    // Copy arg registers.
-    MVT RegTy = MVT::getIntegerVT(CC.regSize() * 8);
-    const TargetRegisterClass *RC = getRegClassFor(RegTy);
-
-    for (unsigned I = 0; I < ByVal.NumRegs; ++I) {
-        unsigned ArgReg = ByValArgRegs[ByVal.FirstIdx + I];
-        unsigned VReg = addLiveIn(MF, ArgReg, RC);
-        unsigned Offset = I * CC.regSize();
-        SDValue StorePtr = DAG.getNode(ISD::ADD, DL, PtrTy, FIN, DAG.getConstant(Offset, DL, PtrTy));
-        SDValue Store = DAG.getStore(Chain, DL, DAG.getRegister(VReg, RegTy), StorePtr, MachinePointerInfo(FuncArg, Offset));
-        OutChains.push_back(Store);
-    }
-}
-
-// Copy byVal arg to registers and stack.
-void P2TargetLowering::passByValArg(SDValue Chain, const SDLoc &DL,
-             std::deque< std::pair<unsigned, SDValue> > &RegsToPass,
-             SmallVectorImpl<SDValue> &MemOpChains, SDValue StackPtr,
-             MachineFrameInfo *MFI, SelectionDAG &DAG, SDValue Arg,
-             const P2CC &CC, const ByValArgInfo &ByVal,
-             const ISD::ArgFlagsTy &Flags) const {
-
-    unsigned ByValSizeInBytes = Flags.getByValSize();
-    unsigned OffsetInBytes = 0; // From beginning of struct
-    unsigned RegSizeInBytes = CC.regSize();
-    unsigned Alignment = std::min((unsigned)Flags.getNonZeroByValAlign().value(), RegSizeInBytes);
-    EVT PtrTy = getPointerTy(DAG.getDataLayout()),
-        RegTy = MVT::getIntegerVT(RegSizeInBytes * 4);
-
-    if (ByVal.NumRegs) {
-        const ArrayRef<MCPhysReg> ArgRegs = CC.intArgRegs();
-        bool LeftoverBytes = (ByVal.NumRegs * RegSizeInBytes > ByValSizeInBytes);
-        unsigned I = 0;
-
-        // Copy words to registers.
-        for (; I < ByVal.NumRegs - LeftoverBytes; ++I, OffsetInBytes += RegSizeInBytes) {
-            SDValue LoadPtr = DAG.getNode(ISD::ADD, DL, PtrTy, Arg, DAG.getConstant(OffsetInBytes, DL, PtrTy));
-            SDValue LoadVal = DAG.getLoad(RegTy, DL, Chain, LoadPtr, MachinePointerInfo());
-            MemOpChains.push_back(LoadVal.getValue(1));
-            unsigned ArgReg = ArgRegs[ByVal.FirstIdx + I];
-            RegsToPass.push_back(std::make_pair(ArgReg, LoadVal));
-        }
-
-        // Return if the struct has been fully copied.
-        if (ByValSizeInBytes == OffsetInBytes)
-            return;
-
-        // Copy the remainder of the byval argument with sub-word loads and shifts.
-        if (LeftoverBytes) {
-            assert((ByValSizeInBytes > OffsetInBytes) && (ByValSizeInBytes < OffsetInBytes + RegSizeInBytes) &&
-             "Size of the remainder should be smaller than RegSizeInBytes.");
-
-            SDValue Val;
-
-            for (unsigned LoadSizeInBytes = RegSizeInBytes / 2, TotalBytesLoaded = 0;
-                    OffsetInBytes < ByValSizeInBytes; LoadSizeInBytes /= 2) {
-
-                unsigned RemainingSizeInBytes = ByValSizeInBytes - OffsetInBytes;
-
-                if (RemainingSizeInBytes < LoadSizeInBytes)
-                    continue;
-
-                // Load subword.
-                SDValue LoadPtr = DAG.getNode(ISD::ADD, DL, PtrTy, Arg, DAG.getConstant(OffsetInBytes, DL, PtrTy));
-                SDValue LoadVal = DAG.getExtLoad(ISD::ZEXTLOAD, DL, RegTy, Chain, LoadPtr, MachinePointerInfo(),
-                    MVT::getIntegerVT(LoadSizeInBytes * 8), Alignment);
-
-                MemOpChains.push_back(LoadVal.getValue(1));
-
-                // Shift the loaded value.
-                unsigned Shamt = (RegSizeInBytes - (TotalBytesLoaded + LoadSizeInBytes)) * 8;
-
-                SDValue Shift = DAG.getNode(ISD::SHL, DL, RegTy, LoadVal, DAG.getConstant(Shamt, DL, MVT::i32));
-
-                if (Val.getNode()) {
-                    Val = DAG.getNode(ISD::OR, DL, RegTy, Val, Shift);
-                } else {
-                    Val = Shift;
-                }
-
-                OffsetInBytes += LoadSizeInBytes;
-                TotalBytesLoaded += LoadSizeInBytes;
-                Alignment = std::min(Alignment, LoadSizeInBytes);
-            }
-
-            unsigned ArgReg = ArgRegs[ByVal.FirstIdx + I];
-            RegsToPass.push_back(std::make_pair(ArgReg, Val));
-            return;
-        }
-    }
-
-    // Copy remainder of byval arg to it with memcpy.
-    unsigned MemCpySize = ByValSizeInBytes - OffsetInBytes;
-    SDValue Src = DAG.getNode(ISD::ADD, DL, PtrTy, Arg, DAG.getConstant(OffsetInBytes, DL, PtrTy));
-    SDValue Dst = DAG.getNode(ISD::ADD, DL, PtrTy, StackPtr, DAG.getIntPtrConstant(ByVal.Address, DL));
-    Chain = DAG.getMemcpy(Chain, DL, Dst, Src,
-                        DAG.getConstant(MemCpySize, DL, PtrTy),
-                        Align(Alignment), /*isVolatile=*/false, /*AlwaysInline=*/false,
-                        /*isTailCall=*/false,
-                        MachinePointerInfo(), MachinePointerInfo());
-    MemOpChains.push_back(Chain);
-}
-
-P2TargetLowering::P2CC::P2CC(CallingConv::ID CC, CCState &Info, P2CC::SpecialCallingConvType SpecialCallingConv_)
-    : CCInfo(Info), CallConv(CC) {
-    // Pre-allocate reserved argument area.
-    CCInfo.AllocateStack(reservedArgArea(), 1);
-}
-
-void P2TargetLowering::P2CC::analyzeCallOperands(const SmallVectorImpl<ISD::OutputArg> &Args,
-                                                bool IsVarArg, bool IsSoftFloat, const SDNode *CallNode,
-                                                std::vector<ArgListEntry> &FuncArgs) {
-
-    assert((CallConv != CallingConv::Fast || !IsVarArg) &&
-            "CallingConv::Fast shouldn't be used for vararg functions.");
-
-    unsigned NumOpnds = Args.size();
-    llvm::CCAssignFn *FixedFn = fixedArgFn();
-    llvm::CCAssignFn *VarFn = varArgFn();
-
-    for (unsigned I = 0; I != NumOpnds; ++I) {
-        MVT ArgVT = Args[I].VT;
-        ISD::ArgFlagsTy ArgFlags = Args[I].Flags;
-        bool R;
-
-        if (ArgFlags.isByVal()) {
-            handleByValArg(I, ArgVT, ArgVT, CCValAssign::Full, ArgFlags);
-            continue;
-        }
-
-        if (IsVarArg && !Args[I].IsFixed)
-            R = VarFn(I, ArgVT, ArgVT, CCValAssign::Full, ArgFlags, CCInfo);
-        else {
-            MVT RegVT = getRegVT(ArgVT, FuncArgs[Args[I].OrigArgIndex].Ty, CallNode, IsSoftFloat);
-            R = FixedFn(I, ArgVT, RegVT, CCValAssign::Full, ArgFlags, CCInfo);
-        }
-
-        if (R) {
-#ifndef NDEBUG
-            dbgs() << "Call operand #" << I << " has unhandled type " << EVT(ArgVT).getEVTString();
-#endif
-            llvm_unreachable(nullptr);
-        }
-    }
-}
-
-void P2TargetLowering::P2CC::analyzeFormalArguments(const SmallVectorImpl<ISD::InputArg> &Args,
-                                                    bool IsSoftFloat, Function::const_arg_iterator FuncArg) {
-
-    unsigned NumArgs = Args.size();
-    llvm::CCAssignFn *FixedFn = fixedArgFn();
-    unsigned CurArgIdx = 0;
-
-    for (unsigned I = 0; I != NumArgs; ++I) {
-        MVT ArgVT = Args[I].VT;
-        ISD::ArgFlagsTy ArgFlags = Args[I].Flags;
-        if (Args[I].isOrigArg()) {
-            std::advance(FuncArg, Args[I].getOrigArgIndex() - CurArgIdx);
-            CurArgIdx = Args[I].getOrigArgIndex();
-        }
-
-        CurArgIdx = Args[I].OrigArgIndex;
-
-        if (ArgFlags.isByVal()) {
-            handleByValArg(I, ArgVT, ArgVT, CCValAssign::Full, ArgFlags);
-            continue;
-        }
-
-        MVT RegVT = getRegVT(ArgVT, FuncArg->getType(), nullptr, IsSoftFloat);
-
-        if (!FixedFn(I, ArgVT, RegVT, CCValAssign::Full, ArgFlags, CCInfo))
-            continue;
-
-#ifndef NDEBUG
-        dbgs() << "Formal Arg #" << I << " has unhandled type " << EVT(ArgVT).getEVTString();
-#endif
-        llvm_unreachable(nullptr);
-    }
-}
-
-template<typename Ty> void P2TargetLowering::P2CC::analyzeReturn(const SmallVectorImpl<Ty> &RetVals, bool IsSoftFloat,
-              const SDNode *CallNode, const Type *RetTy) const {
-    CCAssignFn *Fn;
-
-    Fn = RetCC_P2;
-
-    for (unsigned I = 0, E = RetVals.size(); I < E; ++I) {
-        MVT VT = RetVals[I].VT;
-        ISD::ArgFlagsTy Flags = RetVals[I].Flags;
-        MVT RegVT = this->getRegVT(VT, RetTy, CallNode, IsSoftFloat);
-
-        if (Fn(I, VT, RegVT, CCValAssign::Full, Flags, this->CCInfo)) {
-
-            #ifndef NDEBUG
-            dbgs() << "Call result #" << I << " has unhandled type "
-                    << EVT(VT).getEVTString() << '\n';
-            #endif
-            llvm_unreachable(nullptr);
-        }
-    }
-}
-
-void P2TargetLowering::P2CC::analyzeCallResult(const SmallVectorImpl<ISD::InputArg> &Ins, bool IsSoftFloat,
-                  const SDNode *CallNode, const Type *RetTy) const {
-    analyzeReturn(Ins, IsSoftFloat, CallNode, RetTy);
-}
-
-void P2TargetLowering::P2CC::analyzeReturn(const SmallVectorImpl<ISD::OutputArg> &Outs, bool IsSoftFloat,
-              const Type *RetTy) const {
-    analyzeReturn(Outs, IsSoftFloat, nullptr, RetTy);
-}
-
-void P2TargetLowering::P2CC::handleByValArg(unsigned ValNo, MVT ValVT,
-                                                MVT LocVT,
-                                                CCValAssign::LocInfo LocInfo,
-                                                ISD::ArgFlagsTy ArgFlags) {
-    assert(ArgFlags.getByValSize() && "Byval argument's size shouldn't be 0.");
-
-    struct ByValArgInfo ByVal;
-    unsigned RegSize = regSize();
-    unsigned ByValSize = alignTo(ArgFlags.getByValSize(), RegSize);
-    unsigned Align = RegSize; //std::min(std::max(ArgFlags.getNonZeroByValAlign(), RegSize), RegSize * 2);
-
-    if (useRegsForByval())
-        allocateRegs(ByVal, ByValSize, Align);
-
-    // Allocate space on caller's stack.
-    ByVal.Address = CCInfo.AllocateStack(ByValSize - RegSize * ByVal.NumRegs, Align);
-    CCInfo.addLoc(CCValAssign::getMem(ValNo, ValVT, ByVal.Address, LocVT, LocInfo));
-    ByValArgs.push_back(ByVal);
-}
-
-unsigned P2TargetLowering::P2CC::numIntArgRegs() const {
-    return array_lengthof(O32IntRegs);
-}
-const ArrayRef<MCPhysReg> P2TargetLowering::P2CC::intArgRegs() const {
-    return makeArrayRef(O32IntRegs);
-}
-
-llvm::CCAssignFn *P2TargetLowering::P2CC::fixedArgFn() const {
-    return CC_P2_args;
-}
-
-llvm::CCAssignFn *P2TargetLowering::P2CC::varArgFn() const {
-    return CC_P2_args;
-}
-
-unsigned P2TargetLowering::P2CC::reservedArgArea() const {
-    return (CallConv != CallingConv::Fast) ? 16 : 0;
-}
-
-MVT P2TargetLowering::P2CC::getRegVT(MVT VT, const Type *OrigTy,
-                                         const SDNode *CallNode,
-                                         bool IsSoftFloat) const {
-    return VT;
 }
