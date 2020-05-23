@@ -63,7 +63,7 @@ void P2AsmPrinter::emitFunctionBodyEnd() {
 
 }
 void P2AsmPrinter::emitStartOfAsmFile(Module &M) {
-
+    OutStreamer->emitRawText("\t\t\torg 0x200"); // all this code should start at the hub
 }
 
 // Force static initialization.

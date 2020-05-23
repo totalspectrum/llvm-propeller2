@@ -4,9 +4,17 @@
     ../build/bin/llc -march=p2 -filetype=obj -debug test6.ll -o test6.o
 */
 
+int x = 0;
+
 int main() {
 
-    asm("dirh #56");
-
+    while(1) {
+        asm("dirh #56");
+        asm("augd #156250");
+        asm("waitx #0");
+        asm("dirl #56");
+        asm("augd #156250");
+        asm("waitx #0");
+    }
     return 0;
 }

@@ -143,7 +143,14 @@ def : Pat<(P2CALL (i32 texternalsym:$dst)), (CALL texternalsym:$dst)>;
 /* I/O and hardware control       */
 /*--------------------------------*/
 
-def DIRHi       : P2Inst<0b1011000, (outs P2GPR:$dir), (ins i32imm:$src), "dirh #$src", []>;
+def DIRHr       : P2Inst<0b1101011, (outs P2GPR:$dir), (ins P2GPR:$src), "dirh $src", []>;
+def DIRHi       : P2Inst<0b1101011, (outs P2GPR:$dir), (ins i32imm:$src), "dirh #$src", []>;
+
+def DIRLr       : P2Inst<0b1101011, (outs P2GPR:$dir), (ins P2GPR:$src), "dirl $src", []>;
+def DIRLi       : P2Inst<0b1101011, (outs P2GPR:$dir), (ins i32imm:$src), "dirl #$src", []>;
+
+def WAITXr      : P2Inst<0b1101011, (outs P2GPR:$dir), (ins P2GPR:$src), "waitx $src", []>;
+def WAITXi      : P2Inst<0b1101011, (outs P2GPR:$dir), (ins i32imm:$src), "waitx #$src", []>;
 
 /*--------------------------------*/
 /* misc instructions              */
