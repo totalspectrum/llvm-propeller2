@@ -25,7 +25,7 @@ P2MCAsmInfo::P2MCAsmInfo(const Triple &TheTriple, const MCTargetOptions &Options
     // Data16bitsDirective = "\t.short\t";
     // Data32bitsDirective = "\t.int\t";
     // ZeroDirective = "\t.space\t";
-    CommentString = "\'";
+    CommentString = "\'\'";
 
     UsesELFSectionDirectiveForBSS = true;
     AllowAtInName = true;

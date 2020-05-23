@@ -140,6 +140,12 @@ def : Pat<(P2CALL (i32 tglobaladdr:$dst)), (CALL tglobaladdr:$dst)>;
 def : Pat<(P2CALL (i32 texternalsym:$dst)), (CALL texternalsym:$dst)>;
 
 /*--------------------------------*/
+/* I/O and hardware control       */
+/*--------------------------------*/
+
+def DIRHi       : P2Inst<0b1011000, (outs P2GPR:$dir), (ins i32imm:$src), "dirh #$src", []>;
+
+/*--------------------------------*/
 /* misc instructions              */
 /*--------------------------------*/
 def NOP         : P2Inst<0b0000000, (outs), (ins), "nop", []>;

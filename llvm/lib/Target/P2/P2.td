@@ -20,6 +20,17 @@ include "P2CallingConv.td"
 
 def P2InstrInfo : InstrInfo;
 
+def P2AsmParser : AsmParser {
+    let ShouldEmitMatchRegisterName = 0;
+}
+
+def P2AsmParserVariant : AsmParserVariant {
+    int Variant = 0;
+
+    // Recognize hard coded registers.
+    string RegisterPrefix = "$";
+}
+
 class Proc<string Name>
  : Processor<Name, NoItineraries, []>;
 
@@ -27,4 +38,6 @@ def : Proc<"Propeller 2">;
 
 def P2 : Target {
     let InstructionSet = P2InstrInfo;
+    let AssemblyParsers = [P2AsmParser];
+    let AssemblyParserVariants = [P2AsmParserVariant];
 }

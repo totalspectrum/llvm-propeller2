@@ -8,6 +8,7 @@ tablegen(LLVM P2GenDAGISel.inc -gen-dag-isel)
 tablegen(LLVM P2GenInstrInfo.inc -gen-instr-info)
 tablegen(LLVM P2GenMCCodeEmitter.inc -gen-emitter)
 tablegen(LLVM P2GenRegisterInfo.inc -gen-register-info)
+tablegen(LLVM P2GenAsmMatcher.inc -gen-asm-matcher)
 
 #tablegen(LLVM P2GenMCPseudoLowering.inc -gen-pseudo-lowering)
 add_public_tablegen_target(P2CommonTableGen)
@@ -33,3 +34,4 @@ add_llvm_target(P2CodeGen
 
 add_subdirectory(TargetInfo)
 add_subdirectory(MCTargetDesc)
+add_subdirectory(AsmParser)

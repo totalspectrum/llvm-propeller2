@@ -59,25 +59,6 @@ namespace llvm {
             IF_C_OR_Z,
             ALWAYS
         };
-
-        const char* cond_lut[16] = {
-            "_ret_",
-            "if_nc_and_nz",
-            "if_nc_and_z",
-            "if_nc",
-            "if_c_and_nz",
-            "if_nz",
-            "if_c_ne_z",
-            "if_nc_or_nz",
-            "if_c_and_z",
-            "if_c_eq_z",
-            "if_z",
-            "if_nc_or_z",
-            "if_c",
-            "if_c_or_nz",
-            "if_c_or_z",
-            ""
-        };
     }
 
 }
