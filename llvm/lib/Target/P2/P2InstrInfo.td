@@ -81,10 +81,10 @@ def QUREM       : Pseudo<(outs P2GPR:$dst), (ins P2GPR:$src1, P2GPR:$src2), "ure
 // define branch instruction for various compare branches (equal, not equal, etc), they will probably be all subclasses of common branch with different effects stuck to it.
 // define a pattern that matched a compare instruction output inputting to one of the branch instructions for various IR conditional branch patterns
 
-def CMPrr       : P2InstCZIDS<0b0010000, 0b000, always, (outs P2Implicit:$dst), (ins P2GPR:$d, P2GPR:$s), "cmp $d, $s\twcz", []>;
-def CMPri       : P2InstCZIDS<0b0010000, 0b001, always, (outs P2Implicit:$dst), (ins P2GPR:$d, i32imm:$s), "cmp $d, #$s\twcz", []>;
-def CMPRrr      : P2InstCZIDS<0b0010100, 0b000, always, (outs P2Implicit:$dst), (ins P2GPR:$d, P2GPR:$s), "cmpr $d, $s\twcz", []>;
-def CMPRri      : P2InstCZIDS<0b0010100, 0b001, always, (outs P2Implicit:$dst), (ins P2GPR:$d, i32imm:$s), "cmpr $d, #$s\twcz", []>;
+def CMPrr       : P2InstCZIDS<0b0010000, 0b110, always, (outs P2Implicit:$dst), (ins P2GPR:$d, P2GPR:$s), "cmp $d, $s\twcz", []>;
+def CMPri       : P2InstCZIDS<0b0010000, 0b111, always, (outs P2Implicit:$dst), (ins P2GPR:$d, i32imm:$s), "cmp $d, #$s\twcz", []>;
+def CMPRrr      : P2InstCZIDS<0b0010100, 0b110, always, (outs P2Implicit:$dst), (ins P2GPR:$d, P2GPR:$s), "cmpr $d, $s\twcz", []>;
+def CMPRri      : P2InstCZIDS<0b0010100, 0b111, always, (outs P2Implicit:$dst), (ins P2GPR:$d, i32imm:$s), "cmpr $d, #$s\twcz", []>;
 
 def JMP         : P2BranchInst<(outs), (ins jmptarget:$target), always, [(br bb:$target)]>;
 def JMPeq       : P2BranchInst<(outs), (ins P2Implicit:$cmp, jmptarget:$target), if_z, []>;

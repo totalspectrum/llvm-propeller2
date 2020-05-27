@@ -296,9 +296,8 @@ class P2InstCZ<bits<8> op, bits<9> d, bits<9> s, bits<2> cz, P2Cond cond, dag ou
     P2Inst<cond, 14, outs, ins, asmstr, pattern> {
 
     let Inst{27-21} = op{7-1};
-    let Inst{20} = cz{1};
-    let Inst{19} = op{0};
-    let Inst{18} = cz{0};
+    let Inst{20-19} = cz;
+    let Inst{18} = op{0};
     let Inst{17-9} = d;
     let Inst{8-0} = s;
 }
