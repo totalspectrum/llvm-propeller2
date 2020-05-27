@@ -311,6 +311,8 @@ enum {
   EM_RISCV = 243,         // RISC-V
   EM_LANAI = 244,         // Lanai 32-bit processor
   EM_BPF = 247,           // Linux kernel bpf virtual machine
+
+  EM_P2 = 300,
 };
 
 // Object file classes.
@@ -762,6 +764,11 @@ enum : unsigned {
 // ELF Relocation types for MSP430
 enum {
 #include "ELFRelocs/MSP430.def"
+};
+
+// ELF Relocation types for P2
+enum {
+#include "ELFRelocs/P2.def"
 };
 
 #undef ELF_RELOC

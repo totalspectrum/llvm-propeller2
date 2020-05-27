@@ -15,6 +15,8 @@
 
 #include "P2InstPrinter.h"
 #include "P2MCAsmInfo.h"
+#include "P2TargetStreamer.h"
+#include "P2ELFStreamer.h"
 
 #include "llvm/MC/MachineLocation.h"
 #include "llvm/MC/MCELFStreamer.h"
@@ -66,6 +68,25 @@ static MCInstPrinter *createP2MCInstPrinter(const Triple &T,
     return new P2InstPrinter(MAI, MII, MRI);
 }
 
+static MCStreamer *createMCStreamer(const Triple &TT, MCContext &Context,
+                                    std::unique_ptr<MCAsmBackend> &&MAB,
+                                    std::unique_ptr<MCObjectWriter> &&OW,
+                                    std::unique_ptr<MCCodeEmitter> &&Emitter,
+                                    bool RelaxAll) {
+    return createELFStreamer(Context, std::move(MAB), std::move(OW), std::move(Emitter), RelaxAll);
+}
+
+static MCTargetStreamer *createP2ObjectTargetStreamer(MCStreamer &S, const MCSubtargetInfo &STI) {
+    return new P2ELFStreamer(S, STI);
+}
+
+static MCTargetStreamer *createP2AsmTargetStreamer(MCStreamer &S,
+                                                     formatted_raw_ostream &OS,
+                                                     MCInstPrinter *InstPrint,
+                                                     bool isVerboseAsm) {
+    return new P2TargetAsmStreamer(S);
+}
+
 // namespace {
 //     class P2MCInstrAnalysis : public MCInstrAnalysis {
 //     public:
@@ -81,17 +102,24 @@ static MCInstPrinter *createP2MCInstPrinter(const Triple &T,
 extern "C" void LLVMInitializeP2TargetMC() {
     // Register the MC asm info.
     RegisterMCAsmInfo<P2MCAsmInfo> X(TheP2Target);
-
     // Register the MC instruction info.
     TargetRegistry::RegisterMCInstrInfo(TheP2Target, createP2MCInstrInfo);
-
     // Register the MC register info.
     TargetRegistry::RegisterMCRegInfo(TheP2Target, createP2MCRegisterInfo);
-
     // Register the MC subtarget info.
     TargetRegistry::RegisterMCSubtargetInfo(TheP2Target, createP2MCSubtargetInfo);
     // Register the MC instruction analyzer.
     // TargetRegistry::RegisterMCInstrAnalysis(TheP2Target, createP2MCInstrAnalysis);
     // Register the MCInstPrinter.
     TargetRegistry::RegisterMCInstPrinter(TheP2Target, createP2MCInstPrinter);
+    // Register the elf streamer.
+    TargetRegistry::RegisterELFStreamer(TheP2Target, createMCStreamer);
+    // Register the asm target streamer.
+    TargetRegistry::RegisterAsmTargetStreamer(TheP2Target, createP2AsmTargetStreamer);
+    // Register the MC Code Emitter
+    TargetRegistry::RegisterMCCodeEmitter(TheP2Target, createP2MCCodeEmitter);
+    // Register the asm backend.
+    TargetRegistry::RegisterMCAsmBackend(TheP2Target, createP2AsmBackend);
+    // register the object taret streamer
+    TargetRegistry::RegisterObjectTargetStreamer(TheP2Target, createP2ObjectTargetStreamer);
 }

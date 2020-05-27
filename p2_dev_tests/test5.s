@@ -1,9 +1,10 @@
 	.text
+			org 0x200
 	.file	"test5.cpp"
-	.globl	_Z3sumiiiii             ' -- Begin function _Z3sumiiiii
+	.globl	_Z3sumiiiii             '' -- Begin function _Z3sumiiiii
 	.type	_Z3sumiiiii,@function
-_Z3sumiiiii:                            ' @_Z3sumiiiii
-' %bb.0:                                ' %entry
+_Z3sumiiiii:                            '' @_Z3sumiiiii
+'' %bb.0:                               '' %entry
 			add sp, #20
 			mov r4, sp
 			sub r4, #20
@@ -33,11 +34,11 @@ _Z3sumiiiii:                            ' @_Z3sumiiiii
 			ret
 .Lfunc_end0:
 	.size	_Z3sumiiiii, .Lfunc_end0-_Z3sumiiiii
-                                        ' -- End function
-	.globl	main                    ' -- Begin function main
+                                        '' -- End function
+	.globl	main                    '' -- Begin function main
 	.type	main,@function
-main:                                   ' @main
-' %bb.0:                                ' %entry
+main:                                   '' @main
+'' %bb.0:                               '' %entry
 			add sp, #8
 			mov r0, sp
 			sub r0, #8
@@ -60,6 +61,6 @@ main:                                   ' @main
 			ret
 .Lfunc_end1:
 	.size	main, .Lfunc_end1-main
-                                        ' -- End function
+                                        '' -- End function
 	.ident	"clang version 11.0.0 (https://github.com/ne75/llvm-propeller2.git 4d557406a7897e02a2e784d28335c582d21d0c60)"
 	.section	".note.GNU-stack","",@progbits

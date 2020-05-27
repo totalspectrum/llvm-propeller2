@@ -15,19 +15,29 @@
 #define LLVM_LIB_TARGET_P2_P2MCTARGETDESC_H
 
 #include "llvm/Support/DataTypes.h"
+#include <memory>
 
 namespace llvm {
-    class Target;
     class MCAsmBackend;
     class MCCodeEmitter;
     class MCContext;
     class MCInstrInfo;
     class MCObjectWriter;
+    class MCObjectTargetWriter;
     class MCRegisterInfo;
     class MCSubtargetInfo;
+    class MCTargetOptions;
     class StringRef;
-
+    class Target;
+    class Triple;
     class raw_ostream;
+    class raw_pwrite_stream;
+
+    MCCodeEmitter *createP2MCCodeEmitter(const MCInstrInfo &MCII, const MCRegisterInfo &MRI, MCContext &Ctx);
+
+    MCAsmBackend *createP2AsmBackend(const Target &T, const MCSubtargetInfo &STI, const MCRegisterInfo &MRI, const llvm::MCTargetOptions &TO);
+
+    std::unique_ptr<MCObjectTargetWriter> createP2ELFObjectWriter(uint8_t OSABI);
 
     extern Target TheP2Target;
 

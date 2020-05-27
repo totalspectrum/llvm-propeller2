@@ -53,25 +53,25 @@ def P2CALL  : SDNode<"P2ISD::CALL", SDT_P2Call, [SDNPHasChain, SDNPOutGlue, SDNP
 /* basic math and logic           */
 /*--------------------------------*/
 
-let Constraints = "$src1 = $dst" in {
-    def ADDrr   : P2Inst<0b0001000,  (outs P2GPR:$dst), (ins P2GPR:$src1, P2GPR:$src2), "add $dst, $src2", [(set P2GPR:$dst, (add P2GPR:$src1, P2GPR:$src2))]>;
-    def ADDri   : P2Inst<0b0001000,  (outs P2GPR:$dst), (ins P2GPR:$src1, i32imm:$src2), "add $dst, #$src2", [(set P2GPR:$dst, (add P2GPR:$src1, imm:$src2))]>;
+let Constraints = "$src1 = $d" in {
+    def ADDrr   : P2InstCZIDS<0b0001000,  0b000, always, (outs P2GPR:$d), (ins P2GPR:$src1, P2GPR:$s), "add $d, $s", [(set P2GPR:$d, (add P2GPR:$src1, P2GPR:$s))]>;
+    def ADDri   : P2InstCZIDS<0b0001000,  0b001, always, (outs P2GPR:$d), (ins P2GPR:$src1, i32imm:$s), "add $d, #$s", [(set P2GPR:$d, (add P2GPR:$src1, imm:$s))]>;
 
-    def SUBrr   : P2Inst<0b0001100,  (outs P2GPR:$dst), (ins P2GPR:$src1, P2GPR:$src2), "sub $dst, $src2", [(set P2GPR:$dst, (sub P2GPR:$src1, P2GPR:$src2))]>;
-    def SUBri   : P2Inst<0b0001100,  (outs P2GPR:$dst), (ins P2GPR:$src1, i32imm:$src2), "sub $dst, #$src2", [(set P2GPR:$dst, (sub P2GPR:$src1, imm:$src2))]>;
+    def SUBrr   : P2InstCZIDS<0b0001100,  0b000, always, (outs P2GPR:$d), (ins P2GPR:$src1, P2GPR:$s), "sub $d, $s", [(set P2GPR:$d, (sub P2GPR:$src1, P2GPR:$s))]>;
+    def SUBri   : P2InstCZIDS<0b0001100,  0b001, always, (outs P2GPR:$d), (ins P2GPR:$src1, i32imm:$s), "sub $d, #$s", [(set P2GPR:$d, (sub P2GPR:$src1, imm:$s))]>;
 }
 
 /*--------------------------------*/
 /* More complicated math          */
 /*--------------------------------*/
 
-def GETQX       : P2Inst<0b1101011, (outs P2GPR:$dst), (ins P2Implicit:$qx), "getqx $dst", []>;
-def GETQY       : P2Inst<0b1101011, (outs P2GPR:$dst), (ins P2Implicit:$qy), "getqy $dst", []>;
+def GETQX       : P2InstCZD<0b1101011, 0b000011000, 0b00, always, (outs P2GPR:$d), (ins P2Implicit:$qx), "getqx $d", []>;
+def GETQY       : P2InstCZD<0b1101011, 0b000011001, 0b00, always, (outs P2GPR:$d), (ins P2Implicit:$qy), "getqy $d", []>;
 
-def QDIV        : P2Inst<0b1101000, (outs P2Implicit:$qx, P2Implicit:$qy), (ins P2GPR:$src1, P2GPR:$src2), "qdiv $src1, $src2", []>;
+def QDIV        : P2InstLIDS<0b11010001, 0b00, always, (outs P2Implicit:$qx, P2Implicit:$qy), (ins P2GPR:$src1, P2GPR:$src2), "qdiv $src1, $src2", []>;
 
 def QSREM       : Pseudo<(outs P2GPR:$dst), (ins P2GPR:$src1, P2GPR:$src2), "srem $dst, $src1, $src2", [(set P2GPR:$dst, (srem P2GPR:$src1, P2GPR:$src2))]>;
-def QUREM       : Pseudo<(outs P2GPR:$dst), (ins P2GPR:$src1, P2GPR:$src2), "Urem $dst, $src1, $src2", [(set P2GPR:$dst, (srem P2GPR:$src1, P2GPR:$src2))]>;
+def QUREM       : Pseudo<(outs P2GPR:$dst), (ins P2GPR:$src1, P2GPR:$src2), "urem $dst, $src1, $src2", [(set P2GPR:$dst, (srem P2GPR:$src1, P2GPR:$src2))]>;
 
 /*--------------------------------*/
 /* branching and conditionals     */
@@ -81,10 +81,10 @@ def QUREM       : Pseudo<(outs P2GPR:$dst), (ins P2GPR:$src1, P2GPR:$src2), "Ure
 // define branch instruction for various compare branches (equal, not equal, etc), they will probably be all subclasses of common branch with different effects stuck to it.
 // define a pattern that matched a compare instruction output inputting to one of the branch instructions for various IR conditional branch patterns
 
-def CMPrr       : P2Inst<0b0010000, (outs P2Implicit:$dst), (ins P2GPR:$src1, P2GPR:$src2), "cmp $src1, $src2\twcz", []>;
-def CMPri       : P2Inst<0b0010000, (outs P2Implicit:$dst), (ins P2GPR:$src1, i32imm:$src2), "cmp $src1, #$src2\twcz", []>;
-def CMPRrr      : P2Inst<0b0010100, (outs P2Implicit:$dst), (ins P2GPR:$src1, P2GPR:$src2), "cmpr $src1, $src2\twcz", []>;
-def CMPRri      : P2Inst<0b0010100, (outs P2Implicit:$dst), (ins P2GPR:$src1, i32imm:$src2), "cmpr $src1, #$src2\twcz", []>;
+def CMPrr       : P2InstCZIDS<0b0010000, 0b000, always, (outs P2Implicit:$dst), (ins P2GPR:$d, P2GPR:$s), "cmp $d, $s\twcz", []>;
+def CMPri       : P2InstCZIDS<0b0010000, 0b001, always, (outs P2Implicit:$dst), (ins P2GPR:$d, i32imm:$s), "cmp $d, #$s\twcz", []>;
+def CMPRrr      : P2InstCZIDS<0b0010100, 0b000, always, (outs P2Implicit:$dst), (ins P2GPR:$d, P2GPR:$s), "cmpr $d, $s\twcz", []>;
+def CMPRri      : P2InstCZIDS<0b0010100, 0b001, always, (outs P2Implicit:$dst), (ins P2GPR:$d, i32imm:$s), "cmpr $d, #$s\twcz", []>;
 
 def JMP         : P2BranchInst<(outs), (ins jmptarget:$target), always, [(br bb:$target)]>;
 def JMPeq       : P2BranchInst<(outs), (ins P2Implicit:$cmp, jmptarget:$target), if_z, []>;
@@ -108,13 +108,13 @@ def : Pat<(brcc SETGT, P2GPR:$lhs, imm:$rhs, bb:$target), (JMPgt (CMPRri P2GPR:$
 /*--------------------------------*/
 /* moving data                    */
 /*--------------------------------*/
-def MOVri       : P2Inst<0b0110000,  (outs P2GPR:$dst), (ins i32imm:$src), "mov $dst, #$src", [(set P2GPR:$dst, imm:$src)]>;
-def MOVrr       : P2Inst<0b0110000,  (outs P2GPR:$dst), (ins P2GPR:$src), "mov $dst, $src", [(set P2GPR:$dst, P2GPR:$src)]>;
+def MOVri       : P2InstCZIDS<0b0110000, 0b001, always, (outs P2GPR:$d), (ins i32imm:$s), "mov $d, #$s", [(set P2GPR:$d, imm:$s)]>;
+def MOVrr       : P2InstCZIDS<0b0110000, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$s), "mov $d, $s", [(set P2GPR:$d, P2GPR:$s)]>;
 
-def RDLONGrr    : P2Inst<0b1011000,  (outs P2GPR:$dst), (ins P2GPR:$src), "rdlong $dst, $src", [(set P2GPR:$dst, (load P2GPR:$src))]>;
+def RDLONGrr    : P2InstCZIDS<0b1011000, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$s), "rdlong $d, $s", [(set P2GPR:$d, (load P2GPR:$s))]>;
 
-def WRLONGrr    : P2Inst<0b1100011,  (outs), (ins P2GPR:$dst, P2GPR:$src), "wrlong $dst, $src", [(store P2GPR:$dst, P2GPR:$src)]>;
-def WRLONGir    : P2Inst<0b1100011,  (outs), (ins i32imm:$dst, P2GPR:$src), "wrlong #$dst, $src", [(store imm:$dst, P2GPR:$src)]>;
+def WRLONGrr    : P2InstLIDS<0b11000110, 0b00, always, (outs), (ins P2GPR:$d, P2GPR:$s), "wrlong $d, $s", [(store P2GPR:$d, P2GPR:$s)]>;
+def WRLONGir    : P2InstLIDS<0b11000110, 0b10, always, (outs), (ins i32imm:$d, P2GPR:$s), "wrlong #$d, $s", [(store imm:$d, P2GPR:$s)]>;
 
 //def : Pat<(i32 imm:$i), (MOVri i32imm:$i)>;
 
@@ -123,11 +123,11 @@ def WRLONGir    : P2Inst<0b1100011,  (outs), (ins i32imm:$dst, P2GPR:$src), "wrl
 /*--------------------------------*/
 
 let isTerminator = 1, isReturn = 1, isBarrier = 1 in {
-    def RET     : P2Inst<0b1101011, (outs), (ins), "ret", [(P2RET)]>;
+    def RET     : P2InstCZ<0b11010111, 0b000000000, 0b000101101, 0b00, always, (outs), (ins), "ret", [(P2RET)]>;
 }
 
 let isCall = 1, Uses = [SP] in {
-    def CALL    : P2Inst<0b1101101, (outs), (ins calltarget:$addr), "call #$addr", []>;
+    def CALL    : P2InstRA<0b1101101, 0b0, always, (outs), (ins calltarget:$a), "call #$a", []>;
 }
 
 let Defs = [SP], Uses = [SP] in {
@@ -143,21 +143,21 @@ def : Pat<(P2CALL (i32 texternalsym:$dst)), (CALL texternalsym:$dst)>;
 /* I/O and hardware control       */
 /*--------------------------------*/
 
-def DIRHr       : P2Inst<0b1101011, (outs P2GPR:$dir), (ins P2GPR:$src), "dirh $src", []>;
-def DIRHi       : P2Inst<0b1101011, (outs P2GPR:$dir), (ins i32imm:$src), "dirh #$src", []>;
+def DIRHr       : P2InstCZLD<0b1101011, 0b001000001, 0b000, always, (outs P2GPR:$dir), (ins P2GPR:$d), "dirh $d", []>;
+def DIRHi       : P2InstCZLD<0b1101011, 0b001000001, 0b001, always, (outs P2GPR:$dir), (ins i32imm:$d), "dirh #$d", []>;
 
-def DIRLr       : P2Inst<0b1101011, (outs P2GPR:$dir), (ins P2GPR:$src), "dirl $src", []>;
-def DIRLi       : P2Inst<0b1101011, (outs P2GPR:$dir), (ins i32imm:$src), "dirl #$src", []>;
+def DIRLr       : P2InstCZLD<0b1101011, 0b001000000, 0b000, always, (outs P2GPR:$dir), (ins P2GPR:$d), "dirl $d", []>;
+def DIRLi       : P2InstCZLD<0b1101011, 0b001000000, 0b001, always, (outs P2GPR:$dir), (ins i32imm:$d), "dirl #$d", []>;
 
-def WAITXr      : P2Inst<0b1101011, (outs P2GPR:$dir), (ins P2GPR:$src), "waitx $src", []>;
-def WAITXi      : P2Inst<0b1101011, (outs P2GPR:$dir), (ins i32imm:$src), "waitx #$src", []>;
+def WAITXr      : P2InstLD<0b1101011, 0b000011111, 0b0, always, (outs), (ins P2GPR:$d), "waitx $d", []>;
+def WAITXi      : P2InstLD<0b1101011, 0b000011111, 0b1, always, (outs), (ins i32imm:$d), "waitx #$d", []>;
 
 /*--------------------------------*/
 /* misc instructions              */
 /*--------------------------------*/
-def NOP         : P2Inst<0b0000000, (outs), (ins), "nop", []>;
-def AUGS        : P2Inst<0b1111000, (outs), (ins i32imm:$n), "augs #$n", []>;
-def AUGD        : P2Inst<0b1111100, (outs), (ins i32imm:$n), "augd #$n", []>;
+def NOP         : P2Inst<_ret_, 0, (outs), (ins), "nop", []>;
+def AUGS        : P2InstN<0b11110, always, (outs), (ins i32imm:$n), "augs #$n", []>;
+def AUGD        : P2InstN<0b11111, always, (outs), (ins i32imm:$n), "augd #$n", []>;
 
 def FRMIDX      : Pseudo<(outs P2GPR:$dst), (ins P2GPR:$src, i32imm:$src2), "frmidx $dst, $src, $src2", []>;
 

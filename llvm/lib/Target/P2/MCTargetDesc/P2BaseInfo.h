@@ -59,6 +59,29 @@ namespace llvm {
             IF_C_OR_Z,
             ALWAYS
         };
+
+        enum {
+            P2Inst,
+            P2InstCZIDS,
+            P2Inst3NIDS,
+            P2Inst2NIDS,
+            P2Inst1NIDS,
+            P2InstIDS,
+            P2InstZIDS,
+            P2InstCIDS,
+            P2InstLIDS,
+            P2InstIS,
+            P2InstCLIDS,
+            P2InstLD,
+            P2InstCLD,
+            P2InstCZD,
+            P2InstCZ,
+            P2InstCZLD,
+            P2InstD,
+            P2InstRA,
+            P2InstWRA,
+            P2InstN
+        };
     }
 
 }

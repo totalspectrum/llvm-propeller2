@@ -32,14 +32,5 @@ main:                                   '' @main
 .Lfunc_end0:
 	.size	main, .Lfunc_end0-main
                                         '' -- End function
-	.type	x,@object               '' @x
-	.section	.bss,"aw",@nobits
-	.globl	x
-	.p2align	2
-x:
-x$local:
-	.long	0                       '' 0x0
-	.size	x, 4
-
 	.ident	"clang version 11.0.0 (https://github.com/ne75/llvm-propeller2.git e9f9d355c78c353223bb80946791140aee671499)"
 	.section	".note.GNU-stack","",@progbits
