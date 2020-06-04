@@ -41,6 +41,13 @@ void P2::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                const InputInfoList &Inputs,
                                const ArgList &Args,
                                const char *LinkingOutput) const {
+
+    // std::string Linker = getToolChain().GetProgramPath(getShortName());
+    // ArgStringList CmdArgs;
+    // CmdArgs.push_back("-o");
+    // CmdArgs.push_back(Output.getFilename());
+
+    // C.addCommand(std::make_unique<Command>(JA, *this, Args.MakeArgString(Linker), CmdArgs, Inputs));
 }
 
 // llvm::Optional<std::string> P2ToolChain::findP2LibcInstallation() const {

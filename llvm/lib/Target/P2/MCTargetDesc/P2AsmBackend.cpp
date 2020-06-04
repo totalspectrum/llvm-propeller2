@@ -12,7 +12,7 @@
 //===----------------------------------------------------------------------===//
 //
 
-//#include "MCTargetDesc/P2FixupKinds.h"
+#include "MCTargetDesc/P2FixupKinds.h"
 #include "MCTargetDesc/P2AsmBackend.h"
 
 #include "MCTargetDesc/P2MCTargetDesc.h"
@@ -25,6 +25,9 @@
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/Debug.h"
+
+#define DEBUG_TYPE "p2-asm-backend"
 
 using namespace llvm;
 static unsigned adjustFixupValue(const MCFixup &Fixup, uint64_t Value, MCContext *Ctx = nullptr) {
@@ -33,13 +36,21 @@ static unsigned adjustFixupValue(const MCFixup &Fixup, uint64_t Value, MCContext
 
     // Add/subtract and shift
     switch (Kind) {
+        case P2::fixup_P2_32:
+        case P2::fixup_P2_PC32:
+        case P2::fixup_P2_20:
+        case P2::fixup_P2_AUG20:
+            break;
+        case P2::fixup_P2_PC20:
+            Value -= 4; // a relative jump automatically includes the next instruction, so reduce the jump by 1 instruction (4 bytes)
+            Value &= 0xfffff; // mask the 20 bits in case the relative jump is negative
+            break;
         default:
             return 0;
     }
 
     return Value;
 }
-//@adjustFixupValue }
 
 std::unique_ptr<MCObjectTargetWriter> P2AsmBackend::createObjectTargetWriter() const {
     return createP2ELFObjectWriter(MCELFObjectTargetWriter::getOSABI(OSType));
@@ -50,47 +61,64 @@ void P2AsmBackend::applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
                         uint64_t Value, bool IsResolved,
                         const MCSubtargetInfo *STI) const {
 
-    //MCFixupKind Kind = Fixup.getKind();
+    MCFixupKind Kind = Fixup.getKind();
     Value = adjustFixupValue(Fixup, Value);
 
     if (!Value)
         return; // Doesn't change encoding.
 
-    // // Where do we start in the object
-    // unsigned Offset = Fixup.getOffset();
-    // // Number of bytes we need to fixup
-    // unsigned NumBytes = (getFixupKindInfo(Kind).TargetSize + 7) / 8;
-    // // Used to point to big endian bytes
-    // unsigned FullSize;
+    LLVM_DEBUG(errs() << "-- applying fixup\n");
 
-    // switch ((unsigned)Kind) {
-    // default:
-    //     FullSize = 4;
-    //     break;
-    // }
+    // Where do we start in the object
+    unsigned Offset = Fixup.getOffset();
+    // Number of bytes we need to fixup
+    unsigned NumBytes = (getFixupKindInfo(Kind).TargetSize + 7) / 8;
+    // Grab current value, if any, from bits.
+    uint64_t CurVal = 0;
 
-    // // Grab current value, if any, from bits.
-    // uint64_t CurVal = 0;
+    for (unsigned i = 0; i != NumBytes; ++i) {
+        CurVal |= (uint64_t)((uint8_t)Data[Offset + i]) << (i*8);
+    }
 
-    // for (unsigned i = 0; i != NumBytes; ++i) {
-    //     unsigned Idx = IsLittle ? i : (FullSize - 1 - i);
-    //     CurVal |= (uint64_t)((uint8_t)Data[Offset + Idx]) << (i*8);
-    // }
+    uint64_t Mask = ((uint64_t)(-1) >> (64 - getFixupKindInfo(Kind).TargetSize));
+    CurVal |= Value & Mask;
 
-    // uint64_t Mask = ((uint64_t)(-1) >>
-    //                                     (64 - getFixupKindInfo(Kind).TargetSize));
-    // CurVal |= Value & Mask;
-
-    // // Write out the fixed up bytes back to the code/data bits.
-    // for (unsigned i = 0; i != NumBytes; ++i) {
-    //     unsigned Idx = IsLittle ? i : (FullSize - 1 - i);
-    //     Data[Offset + Idx] = (uint8_t)((CurVal >> (i*8)) & 0xff);
-    // }
+    // Write out the fixed up bytes back to the code/data bits.
+    for (unsigned i = 0; i != NumBytes; ++i) {
+        Data[Offset + i] = (uint8_t)((CurVal >> (i*8)) & 0xff);
+    }
 }
 
 const MCFixupKindInfo &P2AsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
-    return MCAsmBackend::getFixupKindInfo(Kind);
+    const static MCFixupKindInfo Infos[P2::NumTargetFixupKinds] = {
+        // This table *must* be in same the order of fixup_* kinds in
+        // P2FixupKinds.h.
+        //
+        // name                 offset  bits  flags
+        { "fixup_P2_32",        0,      32,   0},
+        { "fixup_P2_PC32",      0,      32,   MCFixupKindInfo::FKF_IsPCRel},
+        { "fixup_P2_20",        0,      20,   0},
+        { "fixup_P2_PC20",      0,      20,   MCFixupKindInfo::FKF_IsPCRel},
+        { "fixup_P2_AUG20",     0,      20,   0}
+    };
+
+    if (Kind < FirstTargetFixupKind)
+        return MCAsmBackend::getFixupKindInfo(Kind);
+
+    assert(unsigned(Kind - FirstTargetFixupKind) < getNumFixupKinds() && "Invalid kind!");
+    return Infos[Kind - FirstTargetFixupKind];
 }
+
+// bool P2AsmBackend::shouldForceRelocation(const MCAssembler &Asm, const MCFixup &Fixup, const MCValue &Target) {
+//     switch ((unsigned) Fixup.getKind()) {
+//         default:
+//             return false;
+//         // Fixups which should always be recorded as relocations.
+//         case P2::fixup_P2_20:
+//         case P2::fixup_P2_PC20:
+//             return true;
+//     }
+// }
 
 bool P2AsmBackend::writeNopData(raw_ostream &OS, uint64_t Count) const {
     return true;

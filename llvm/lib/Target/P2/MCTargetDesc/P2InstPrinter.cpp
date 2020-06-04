@@ -90,6 +90,7 @@ static void printExpr(const MCExpr *Expr, const MCAsmInfo *MAI, raw_ostream &OS)
 }
 
 void P2InstPrinter::printOperand(const MCInst *MI, unsigned OpNum, raw_ostream &O) {
+    LLVM_DEBUG(errs() << "print operand op num = " << OpNum << "\n");
     const MCOperand &Op = MI->getOperand(OpNum);
     if (Op.isReg()) {
         printRegName(O, Op.getReg());

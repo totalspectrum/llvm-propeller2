@@ -28,7 +28,6 @@ using namespace llvm;
 // Pin the vtable to this file.
 void P2InstrInfo::anchor() {}
 
-//@P2InstrInfo {
 P2InstrInfo::P2InstrInfo() : P2GenInstrInfo(P2::ADJCALLSTACKUP, P2::ADJCALLSTACKDOWN), RI() {}
 
 void P2InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,

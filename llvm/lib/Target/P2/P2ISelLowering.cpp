@@ -58,47 +58,6 @@ static unsigned addLiveIn(MachineFunction &MF, unsigned PReg, const TargetRegist
     return VReg;
 }
 
-// // Passed first four i32 arguments in registers and others in stack.
-// static bool analyzeCallArg(unsigned ValNo, MVT ValVT, CCValAssign::LocInfo LocInfo, ISD::ArgFlagsTy ArgFlags, CCState &State) {
-//     static const MCPhysReg IntRegs[] = {P2::R0, P2::R1, P2::R2, P2::R3};
-
-//     LLVM_DEBUG(errs() << "analyzing argument in call\n");
-
-//     // Do not process byval args here.
-//     if (ArgFlags.isByVal())
-//         return true;
-
-//     unsigned Reg;
-
-//     // f32 and f64 are allocated in R0, R1 when either of the following
-//     // is true: function is vararg, argument is 3rd or higher, there is previous
-//     // argument which is not f32 or f64.
-//     bool AllocateFloatsInIntReg = true;
-//     unsigned OrigAlign = ArgFlags.getOrigAlign();
-//     bool isI64 = (ValVT == MVT::i32 && OrigAlign == 8);
-
-//     if (ValVT == MVT::i32 || (ValVT == MVT::f32 && AllocateFloatsInIntReg)) {
-//         Reg = State.AllocateReg(IntRegs);
-//         // If this is the first part of an i64 arg,
-//         // the allocated register must be R0.
-//         if (isI64 && (Reg == P2::R1))
-//             Reg = State.AllocateReg(IntRegs);
-
-//     } else {
-//         llvm_unreachable("Can't handle this ValVT!");
-//     }
-
-//     if (!Reg) {
-//         unsigned Offset = State.AllocateStack(ValVT.getSizeInBits() >> 3, OrigAlign);
-//         LLVM_DEBUG(errs() << "allocating stack space for argument, offset = " << Offset << "\n");
-//         State.addLoc(CCValAssign::getMem(ValNo, ValVT, Offset, ValVT, LocInfo));
-//     } else {
-//         State.addLoc(CCValAssign::getReg(ValNo, ValVT, Reg, ValVT, LocInfo));
-//     }
-
-//     return false;
-// }
-
 const char *P2TargetLowering::getTargetNodeName(unsigned Opcode) const {
 
     switch (Opcode) {
@@ -274,7 +233,7 @@ SDValue P2TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     Chain = DAG.getNode(P2ISD::CALL, DL, NodeTys, Ops);
     SDValue InFlag = Chain.getValue(1);
 
-    // end teh call sequence
+    // end the call sequence
     Chain = DAG.getCALLSEQ_END(Chain, DAG.getIntPtrConstant(NextStackOffset, DL, true), DAG.getIntPtrConstant(0, DL, true), InFlag, DL);
     InFlag = Chain.getValue(1);
 
@@ -493,3 +452,125 @@ SDValue P2TargetLowering::LowerReturn(SDValue Chain,
     // Return on P2 is always a "ret"
     return DAG.getNode(P2ISD::RET, DL, MVT::Other, RetOps);
 }
+
+//===----------------------------------------------------------------------===//
+//                           P2 Inline Assembly Support
+//===----------------------------------------------------------------------===//
+
+/// getConstraintType - Given a constraint letter, return the type of
+/// constraint it is for this target.
+P2TargetLowering::ConstraintType P2TargetLowering::getConstraintType(StringRef Constraint) const {
+    return TargetLowering::getConstraintType(Constraint);
+}
+
+/// Examine constraint type and operand type and determine a weight value.
+/// This object must already have been set up with the operand type
+/// and the current alternative constraint selected.
+TargetLowering::ConstraintWeight P2TargetLowering::getSingleConstraintMatchWeight(AsmOperandInfo &info, const char *constraint) const {
+    ConstraintWeight weight = CW_Invalid;
+    Value *CallOperandVal = info.CallOperandVal;
+    // If we don't have a value, we can't do a match,
+    // but allow it at the lowest weight.
+    if (!CallOperandVal)
+        return CW_Default;
+
+    return CW_Default;
+}
+
+/// This is a helper function to parse a physical register string and split it
+/// into non-numeric and numeric parts (Prefix and Reg). The first boolean flag
+/// that is returned indicates whether parsing was successful. The second flag
+/// is true if the numeric part exists.
+static std::pair<bool, bool> parsePhysicalReg(const StringRef &C, std::string &Prefix, unsigned long long &Reg) {
+  if (C.front() != '{' || C.back() != '}')
+    return std::make_pair(false, false);
+
+  // Search for the first numeric character.
+  StringRef::const_iterator I, B = C.begin() + 1, E = C.end() - 1;
+  I = std::find_if(B, E, std::ptr_fun(isdigit));
+
+  Prefix.assign(B, I - B);
+
+  // The second flag is set to false if no numeric characters were found.
+  if (I == E)
+    return std::make_pair(true, false);
+
+  // Parse the numeric characters.
+  return std::make_pair(!getAsUnsignedInteger(StringRef(I, E - I), 10, Reg), true);
+}
+
+std::pair<unsigned, const TargetRegisterClass *> P2TargetLowering::parseRegForInlineAsmConstraint(const StringRef &C, MVT VT) const {
+    const TargetRegisterClass *RC;
+    std::string Prefix;
+    unsigned long long Reg;
+
+    std::pair<bool, bool> R = parsePhysicalReg(C, Prefix, Reg);
+
+    if (!R.first)
+        return std::make_pair(0U, nullptr);
+    if (!R.second)
+        return std::make_pair(0U, nullptr);
+
+    // Parse $0-$15.
+    assert(Prefix == "$");
+    RC = getRegClassFor((VT == MVT::Other) ? MVT::i32 : VT);
+
+    assert(Reg < RC->getNumRegs());
+    return std::make_pair(*(RC->begin() + Reg), RC);
+}
+
+/// Given a register class constraint, like 'r', if this corresponds directly
+/// to an LLVM register class, return a register of 0 and the register class
+/// pointer.
+std::pair<unsigned, const TargetRegisterClass *> P2TargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
+                                                                                                StringRef Constraint,
+                                                                                                MVT VT) const {
+    if (Constraint.size() == 1) {
+        switch (Constraint[0]) {
+        case 'r':
+            if (VT == MVT::i32 || VT == MVT::i16 || VT == MVT::i8) {
+                return std::make_pair(0U, &P2::P2GPRRegClass);
+            }
+        default:
+            assert("Unexpected type.");
+        }
+    }
+
+    std::pair<unsigned, const TargetRegisterClass *> R;
+    R = parseRegForInlineAsmConstraint(Constraint, VT);
+
+    if (R.second)
+        return R;
+
+    return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
+}
+
+/// LowerAsmOperandForConstraint - Lower the specified operand into the Ops
+/// vector.  If it is invalid, don't add anything to Ops.
+void P2TargetLowering::LowerAsmOperandForConstraint(SDValue Op,
+                                                     std::string &Constraint,
+                                                     std::vector<SDValue>&Ops,
+                                                     SelectionDAG &DAG) const {
+    TargetLowering::LowerAsmOperandForConstraint(Op, Constraint, Ops, DAG);
+}
+
+// bool P2TargetLowering::isLegalAddressingMode(const DataLayout &DL,
+//                                                const AddrMode &AM, Type *Ty,
+//                                                unsigned AS) const {
+//   // No global is ever allowed as a base.
+//   if (AM.BaseGV)
+//     return false;
+
+//   switch (AM.Scale) {
+//   case 0: // "r+i" or just "i", depending on HasBaseReg.
+//     break;
+//   case 1:
+//     if (!AM.HasBaseReg) // allow "r+i".
+//       break;
+//     return false; // disallow "r+r" or "r+r+i".
+//   default:
+//     return false;
+//   }
+
+//   return true;
+// }

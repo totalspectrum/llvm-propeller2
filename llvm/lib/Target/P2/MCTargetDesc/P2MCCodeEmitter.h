@@ -52,10 +52,6 @@ namespace llvm {
         // binary encoding for an instruction.
         uint64_t getBinaryCodeForInstr(const MCInst &MI, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const;
 
-        // Return binary encoding of the branch. If the machine operand
-        // requires relocation, record the relocation and return zero.
-        unsigned getBranchTargetOpValue(const MCInst &MI, unsigned OpNo, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const;
-
         // Return binary encoding of the jump target
         // target operand, such as jmp #function_addr.
         // If the machine operand requires relocation,
@@ -74,7 +70,7 @@ namespace llvm {
 
         unsigned getMemEncoding(const MCInst &MI, unsigned OpNo, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const;
 
-        unsigned getExprOpValue(const MCExpr *Expr, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const;
+        unsigned getExprOpValue(const MCInst &MI, const MCExpr *Expr, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const;
     };
 }
 

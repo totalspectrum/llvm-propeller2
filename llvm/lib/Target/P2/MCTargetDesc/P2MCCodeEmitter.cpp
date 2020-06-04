@@ -15,7 +15,7 @@
 #include "P2MCCodeEmitter.h"
 
 #include "MCTargetDesc/P2BaseInfo.h"
-//#include "MCTargetDesc/P2FixupKinds.h"
+#include "MCTargetDesc/P2FixupKinds.h"
 //#include "MCTargetDesc/P2MCExpr.h"
 #include "MCTargetDesc/P2MCTargetDesc.h"
 #include "llvm/ADT/APFloat.h"
@@ -52,6 +52,7 @@ void P2MCCodeEmitter::emitInstruction(uint64_t Val, unsigned Size, raw_ostream &
 /// encodeInstruction - Emit the instruction.
 /// Size the instruction (currently only 4 bytes)
 void P2MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
+    LLVM_DEBUG(errs() << "==== begin encode ====\n");
     uint32_t bin = getBinaryCodeForInstr(MI, Fixups, STI);
 
     LLVM_DEBUG(MI.dump());
@@ -61,7 +62,7 @@ void P2MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS, Small
 
     const MCInstrDesc &Desc = MCII.get(op_code);
     uint64_t TSFlags = Desc.TSFlags;
-    uint64_t inst_type = (TSFlags >> 4) & 31; // 5 bits
+    // uint64_t inst_type = (TSFlags >> 4) & 31; // 5 bits
     // inst type might not be necessary yet.
 
     LLVM_DEBUG(errs() << "emitting instruction binary: ");
@@ -76,51 +77,68 @@ void P2MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS, Small
     // if ((TSFlags & P2::FormMask) == P2::Pseudo)
     //     llvm_unreachable("Pseudo opcode found in encodeInstruction()");
 
-    // For now all instructions are 4 bytes
-    int Size = 4; // FIXME: Have Desc.getSize() return the correct value!
-
     emitInstruction(bin, 4, OS);
-}
 
-unsigned P2MCCodeEmitter::getBranchTargetOpValue(const MCInst &MI, unsigned OpNo, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
-    llvm_unreachable("getBranchTargetOpValue not implemented");
-    return 0;
+    LLVM_DEBUG(errs() << "==== end encode ====\n");
 }
 
 unsigned P2MCCodeEmitter::getJumpTargetOpValue(const MCInst &MI, unsigned OpNo, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
-    llvm_unreachable("getJumpTargetOpValue not implemented");
+    const MCOperand &MO = MI.getOperand(OpNo);
+    // If the destination is an immediate, we have nothing to do.
+    if (MO.isImm()) return MO.getImm();
+
+    assert(MO.isExpr() && "getJumpTargetOpValue expects only expressions");
+
+    LLVM_DEBUG(errs() << "--- creating fixup for jump operand");
+
+    const MCExpr *Expr = MO.getExpr();
+    Fixups.push_back(MCFixup::create(0, Expr, MCFixupKind(P2::fixup_P2_PC20)));
     return 0;
 }
 
-unsigned P2MCCodeEmitter::encodeCallTarget(const MCInst &MI, unsigned OpNo, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
-    llvm_unreachable("encodeCallTarget not implemented");
-    return 0;
+unsigned P2MCCodeEmitter::encodeCallTarget(const MCInst &MI, unsigned OpNo, SmallVectorImpl<MCFixup> &Fixups,
+                                            const MCSubtargetInfo &STI) const {
+    const MCOperand &MO = MI.getOperand(OpNo);
+
+    if (MO.isExpr()) {
+        MCFixupKind FixupKind = static_cast<MCFixupKind>(P2::fixup_P2_20);
+        Fixups.push_back(MCFixup::create(0, MO.getExpr(), FixupKind, MI.getLoc()));
+        return 0;
+    }
+
+    assert(MO.isImm() && "non-immediate expression not handled by encodeCallTarget");
+
+    auto Target = MO.getImm();
+    return Target;
 }
 
-unsigned P2MCCodeEmitter::getExprOpValue(const MCExpr *Expr,SmallVectorImpl<MCFixup> &Fixups,
+unsigned P2MCCodeEmitter::getExprOpValue(const MCInst &MI, const MCExpr *Expr, SmallVectorImpl<MCFixup> &Fixups,
                                             const MCSubtargetInfo &STI) const {
 
     MCExpr::ExprKind Kind = Expr->getKind();
 
+    LLVM_DEBUG(errs() << " --- kind = " << (unsigned)Kind << "\n");
+
     if (Kind == MCExpr::Constant) {
+        LLVM_DEBUG(errs() << " --- expression is a constant\n");
         return cast<MCConstantExpr>(Expr)->getValue();
     }
 
     if (Kind == MCExpr::Binary) {
-        unsigned Res = getExprOpValue(cast<MCBinaryExpr>(Expr)->getLHS(), Fixups, STI);
-        Res += getExprOpValue(cast<MCBinaryExpr>(Expr)->getRHS(), Fixups, STI);
+        LLVM_DEBUG(errs() << " --- expression is binary\n");
+        unsigned Res = getExprOpValue(MI, cast<MCBinaryExpr>(Expr)->getLHS(), Fixups, STI);
+        Res += getExprOpValue(MI, cast<MCBinaryExpr>(Expr)->getRHS(), Fixups, STI);
         return Res;
+    }
+
+    if (Kind == MCExpr::SymbolRef) {
+        MCFixupKind FixupKind = static_cast<MCFixupKind>(P2::fixup_P2_AUG20);
+        Fixups.push_back(MCFixup::create(0, Expr, FixupKind, MI.getLoc()));
+        return 0;
     }
 
     if (Kind == MCExpr::Target) {
         llvm_unreachable("no implementation for target expressions!");
-        //const P2MCExpr *P2Expr = cast<P2MCExpr>(Expr);
-
-        // P2::Fixups FixupKind = P2::Fixups(0);
-        // switch (P2Expr->getKind()) {
-        // default: llvm_unreachable("Unsupported fixup kind for target expression!");
-        // } // switch
-        // Fixups.push_back(MCFixup::create(0, Expr, MCFixupKind(FixupKind)));
         return 0;
     }
     return 0;
@@ -137,18 +155,23 @@ unsigned P2MCCodeEmitter::getMachineOpValue(const MCInst &MI, const MCOperand &M
         LLVM_DEBUG(errs() << "-- register number is " << RegNo << " for reg " << Reg << "\n");
         return RegNo;
     } else if (MO.isImm()) {
+        LLVM_DEBUG(errs() << "-- immediate operand is " << MO.getImm() << "\n");
         return static_cast<unsigned>(MO.getImm());
     }
+
+    LLVM_DEBUG(errs() << " -- operand is an expression\n");
+
     // MO must be an Expr.
     assert(MO.isExpr());
-    return getExprOpValue(MO.getExpr(), Fixups, STI);
+    return getExprOpValue(MI, MO.getExpr(), Fixups, STI);
 }
 
 /// getMemEncoding - Return binary encoding of memory related operand.
 /// If the offset operand requires relocation, record the relocation.
 unsigned P2MCCodeEmitter::getMemEncoding(const MCInst &MI, unsigned OpNo, SmallVectorImpl<MCFixup> &Fixups,
                                             const MCSubtargetInfo &STI) const {
-    // Base register is encoded in bits 20-16, offset is encoded in bits 15-0.
+    //LLVM_DEBUG(errs()<<"get mem encoding\n");
+    llvm_unreachable("getMemEncoding not implemented");
     // TODO
     assert(MI.getOperand(OpNo).isReg());
     unsigned RegBits = getMachineOpValue(MI, MI.getOperand(OpNo), Fixups, STI) << 16;

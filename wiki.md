@@ -5,7 +5,7 @@ The goal of this project is to write an LLVM backend to generate code for the Pr
 1. ~~figure out how to add a new target machine in the LLVM environment~~
     - https://llvm.org/docs/WritingAnLLVMBackend.html#preliminaries seems to have some starting points
 1. ~~define a register format to use the COG memory register space~~ (see below)
-1. edit this machine to translate a basic program that is just main returning a constant.
+1. ~~edit this machine to translate a basic program that is just main returning a constant.~~
     - minimum requires defining out the calling convention, ~~load~~, ~~store~~, and ~~ret instruction lowering~~.
     - the same page as above should get us there.
     - some great resources (though on opposite ends of the spectrum of sparse and dense):
@@ -14,11 +14,18 @@ The goal of this project is to write an LLVM backend to generate code for the Pr
         - https://llvm.org/devmtg/2014-04/PDFs/Talks/Building%20an%20LLVM%20backend.pdf
 1. ~~edit this machine to generate PASM code for basic ALU operations~~
     - expand to do all math instructions and provide custom nodes for operations propeller doesn't natively support
-1. edit this machine to support basic use of special registers (OUTx, DIRx, and INx)
-1. edit this machine to add some basic startup code to start the cog and execute a blinking LED program
+1. ~~edit this machine to support basic use of special registers (OUTx, DIRx, and INx)~~
+1. ~~edit this machine to add some basic startup code to start the cog and execute a blinking LED program~~
+    - what as actually needed here was to implement the linker backend and write a simple linker script, p2.ld
 1. ~~add more propeller instructions to support branching~~
 1. implement calling conventions to call functions (especially recursion)
-1. add support for starting cogs at specific memory location (with the same startup code as above)
+    - ~implement passing arguments by registers~
+    - ~implement passing arguments by stack~
+    - implement passing byval arguments (structs and classes)
+    - implement variable argument functions
+1. add support for starting cogs at specific memory location
+    - ~~implement basic cog starting for cogs that do not require a stack~~
+    - implement including setq to pass the stack pointer and then assign the stack pointer to that value. Some startup code will be needed.
 1. expand on the rest of the propeller instruction set
 1. create clang extensions for special directives and being able to write directly to I/O regsiters, etc.
 1. port the necessary functions from the c standard library to make c/c++ useful.
@@ -26,14 +33,15 @@ The goal of this project is to write an LLVM backend to generate code for the Pr
 The high level of how this will work:
 1. use clang to compile c/c++ source into LLVM's IR language. Eventually any LLVM front end should work
 1. use the custom backend (the goal of this project, using MIPS, AVR, and ARC targets as references) will convert the LLVM IR code to PASM.
-1. use fastspin (or whatever Parallax's official assembler will be) to compile the assembly code into an executable elf to load. Eventually should be able to compile the PASM to and elf/binary directly from LLVM
+1. ~~use fastspin (or whatever Parallax's official assembler will be) to compile the assembly code into an executable elf to load.~~ Compile the PASM to an elf/binary directly from LLVM using clang and lld.
+
+In principle, all the plumbing should already exist to run clang with the correct arguments and get an loadable binary out.
 
 ## Why are you writing yet another compiler for the Propeller 2?
 
 Propeller (and Propeller 2) are power chips that can do A LOT of a small, simple, and power efficient package. The high flexibility allows it to be used in a very wide variety of applications without having to include a lot of support hardware. As such, it should be used widely in industry, but it's not. I think there are several reasons for its lack of adoption, but one of the biggest ones is the lack of a modern toolchain and lack of modern language support. Propeller 1 addressed this with PropGCC, but it was several years after the release of Propeller 1 and built around GCC 4, is is outdated in the modern world. Additionally, there appears to be a game of chicken going on between Parallax and the Propeller community, where Parallax is focused on Spin and the development of Propeller hardware, so they are hoping the community steps up (again) and developed the tools they desire, while the community is hoping to see something official come out and not put too much effort into developing something that might be pushed aside by an "official" toolchain. As a result, we have a few toolchain that are quite frankly mediocre (sorry to those who work on them) that don't fully support C/C++ (like fastspin), and some that do have full C++ support, but do not support the full functionality of Propeller hardware (like RISCV-P2), and some in between, like p2gcc, which is more or less a bandaid for make use of PropGCC for Propeller 2 (p2gcc also doesn't support the most "standard" P2 library which makes code developed for it not very portable). There has also been several requests for various language support (microPython, Arduino, Rust, etc), all of which will require developing a compiler for Propeller's architecture.
 
 This project aims to solve all of the problems listed above. LLVM is a modern toolchain used by many companies around the world, developed and supported primarily by Apple at this point. It has an intermediate representation that frontends (such as clang for C/C++/Objective C) compile down to, and target specific backends the compile the IR down to target machine instructions. The majority of the work to of the backend is baked into LLVM as it, and the P2 target is another backend (same as the existing x86, AArch64, MIPS, AVR, etc etc backends) that provides basic information (such as regsiters, instruction encoding, and ABI information) to connect the dots between the various compiler passes that LLVM does. Once complete, it will provide access to the full functionality of several langauges for Propeller.
-
 
 ## Getting Started
 See README.md, with the following notes:
@@ -54,7 +62,7 @@ Cog memory is 512 longs. The last 16 are special registers (0x1f0 - 0x1ff, so we
 ### Stack
 We'll need a stack for calling functions, etc. The first 256 longs of the look-up RAM will be a fixed stack for calls and such. So, the stack starts at 0x0 and grows up to 0x0ff. Initially we'll just use HUB RAM so that a typical architecture's load/store instructions can translate directly to rdlong/wrlong for memory read/writes, but eventually we'll add distinction between memories so that stack operatiosn use rdlut/wrlut, and normal memory operations needing the hub RAM will use rdlong/wrlong.
 
-The stack is organized starting at address 0x00000 (since the cog can't exectute from that hub address so it doesn't take up program space to use it) and can continue to 0x001ff before begining to use program space. The stack will always grow up and each frame grows up within the stack. We won't have a distinct frame pointer, in each frame we should read in the current stack pointer and offset it locally to the desired stack slot.
+The stack is organized starting at address 0x00000 (since the cog can't exectute from that hub address so it doesn't take up program space to use it) and can continue to 0x003ff before begining to use program space. The stack will always grow up and each frame grows up within the stack. We won't have a distinct frame pointer, in each frame we should read in the current stack pointer and offset it locally to the desired stack slot.
 
 The remaining cog RAM should be used as a cache for loops, common functions, any math functions we want a fast implementation of, etc. Eventually, there should be a way to specify a function or variable to be cached in cog RAM so it never needs to be fetched from the hub. This will likely need a clang extension.
 
@@ -64,20 +72,30 @@ For starters, we will use a simple calling convention using the above registers 
 ### Passing Arguments
 - All 8 and 16 bit arguments are promoted to 32 bits
 - registers r0-r3 are used to pass first 4 arguments, remaining arguments are passed via the stack
+- byval arguments will be passed via the stack
 
 ### Return Value
 - Functions will return values using r15.
+- byvals will be returned via the stack
 
 When calling a function, the caller will increment sp to allocate space for the arguments that require stack space. It will then call the function (using propeller's CALL instruction) (TBD on how this will affect recursive calls). The callee will allocate the stack space it needs for it's local variables and return values. This it will do it's stuff and before returning (using the RET instruction), it will de-allocate the stack space.
 
 ## Program and memory organization
 
-This section describes how a program should be organized in memory. Below is a simple diagram.
+This section describes how a program should be organized in hub memory. Below is a simple diagram.
 
-| 0x00000                        | 0x00200                        | 0x7fffff                         |
+| 0x00000                        | 0x00400                        | 0x7fffff                         |
 |--------------------------------|--------------------------------|----------------------------------|
 | Cog 0 Stack Space/startup code | Start of generic program space | End of memory (on Rev B silicon) |
 
-Hub memory 0x00000-0x001ff will be used as stack space for the cog 0 cog, as well as contain the startup code needed (like setting up the UART interface, etc). Starting a new cog requires setting PTRA (using SETQ) to the start of the stack space to use for that cog. When the new cog starts, it should copy PTRA to its local SP register and begin executing at PTRB. PTRB can be any address starting at 0x00200 containing the code to run.
+Hub memory 0x00000-0x003ff will be used as stack space for the cog 0 cog, as well as contain the startup code needed (like setting up the UART interface, etc). we start at 0x400 since that's the first address than can be used for hub executiong. Starting a new cog requires setting PTRA (using SETQ) to the start of the stack space to use for that cog. When the new cog starts, it should copy PTRA to its local SP register and begin executing at PTRB. PTRB can be any address starting at 0x00400 containing the code to run.
 
 The end of the memory space (not yet described in detail) will be bss for static data and heap space for dynamic allocation, but dynamic allocation should be kept to a minimum (as with most embedded systems).
+
+## Linking/Loading Programs
+
+The linker script (p2.ld) does 2 things:
+1. place main() at the start of .text, before anything else
+1. place .text at 0x00400, the first hub execution mode address.
+
+The resulting elf can use Eric Smith's loadp2 (which supports elf binaries) and can be loaded onto the P2 Eval Board.

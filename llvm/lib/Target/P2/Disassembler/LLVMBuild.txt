@@ -1,4 +1,4 @@
-;===- ./lib/Target/P2/LLVMBuild.txt ---------------------------*- Conf -*--===;
+;===- ./lib/Target/P2/Disassembler/LLVMBuild.txt --------------*- Conf -*--===;
 ;
 ; Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 ; See https://llvm.org/LICENSE.txt for license information.
@@ -14,27 +14,9 @@
 ;
 ;===------------------------------------------------------------------------===;
 
-[common]
-subdirectories = MCTargetDesc TargetInfo AsmParser Disassembler
-
 [component_0]
-type = TargetGroup
-name = P2
-parent = Target
-has_asmprinter = 1
-has_asmparser = 1
-has_disassembler = 1
-
-[component_1]
 type = Library
-name = P2CodeGen
+name = P2Disassembler
 parent = P2
-required_libraries =
-                     CodeGen Core MC
-                     AsmPrinter
-                     P2Desc
-                     P2Info
-                     SelectionDAG
-                     Support
-                     Target
+required_libraries = MCDisassembler P2Info Support
 add_to_library_groups = P2

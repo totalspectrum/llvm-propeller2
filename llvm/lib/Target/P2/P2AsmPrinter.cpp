@@ -47,6 +47,72 @@ bool P2AsmPrinter::runOnMachineFunction(MachineFunction &MF) {
     return true;
 }
 
+void P2AsmPrinter::printOperand(const MachineInstr *MI, unsigned OpNo, raw_ostream &O) {
+    const MachineOperand &MO = MI->getOperand(OpNo);
+
+    switch (MO.getType()) {
+        case MachineOperand::MO_Register:
+            O << "$" << P2InstPrinter::getRegisterName(MO.getReg());
+            break;
+        case MachineOperand::MO_Immediate:
+            O << "#" << MO.getImm();
+            break;
+        case MachineOperand::MO_GlobalAddress:
+            O << "$" << getSymbol(MO.getGlobal());
+            break;
+        case MachineOperand::MO_ExternalSymbol:
+            O << "$" << *GetExternalSymbolSymbol(MO.getSymbolName());
+            break;
+        case MachineOperand::MO_MachineBasicBlock:
+            O << "$" << *MO.getMBB()->getSymbol();
+            break;
+        default:
+            llvm_unreachable("asm printer operand not implemented yet!");
+    }
+}
+
+bool P2AsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNum,
+                                    const char *ExtraCode, raw_ostream &O) {
+    // Default asm printer can only deal with some extra codes,
+    // so try it first.
+    bool Error = AsmPrinter::PrintAsmOperand(MI, OpNum, ExtraCode, O);
+
+    const MachineOperand &MO = MI->getOperand(OpNum);
+    if (Error && ExtraCode && ExtraCode[0]) {
+        if (ExtraCode[1] != 0)
+            return true; // Unknown modifier.
+
+        switch(ExtraCode[0]) {
+            case '#':
+                // this is an immediate
+            if ((MO.getType()) != MachineOperand::MO_Immediate)
+                return true;
+            O << "#" << MO.getImm();
+                return false;
+        }
+    }
+
+    if (Error)
+        printOperand(MI, OpNum, O);
+
+    return false;
+}
+
+bool P2AsmPrinter::PrintAsmMemoryOperand(const MachineInstr *MI,
+                                          unsigned OpNum, const char *ExtraCode,
+                                          raw_ostream &O) {
+    // Currently we are expecting no ExtraCode
+    if (ExtraCode) {
+        return true; // Unknown modifier.
+    }
+
+    const MachineOperand &MO = MI->getOperand(OpNum);
+    assert(MO.isReg() && "unexpected inline asm memory operand");
+    O << P2InstPrinter::getRegisterName(MO.getReg());
+
+    return false;
+}
+
 void P2AsmPrinter::emitInstruction(const MachineInstr *MI) {
     MCInst I;
     MCInstLowering.lowerInstruction(*MI, I);

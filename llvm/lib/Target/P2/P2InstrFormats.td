@@ -109,7 +109,10 @@ class P2Inst<P2Cond cond, bits<5> type, dag outs, dag ins, string asmstr, list<d
     // TSFlags layout should be kept in sync with P2InstrInfo.h.
     let TSFlags{3-0} = condition; // put the effect bits into the TSFlags field for use by the instruction printer
     let TSFlags{8-4} = type; // the style of instruction (i.e subclass below) for the code emitter to know the operand positions and such
+
     let DecoderNamespace = "P2";
+
+    field bits<32> SoftFail = 0;
 }
 
 // 7 bit opcode, CZI flags, and two 9-bit operands (D/S). S can be immediate
@@ -358,24 +361,10 @@ class P2InstN<bits<5> op, P2Cond cond, dag outs, dag ins, string asmstr, list<da
     let Inst{22-0} = n;
 }
 
-
-/*
-// typical instruction that should always execute
-class P2Inst<bits<7> op, dag outs, dag ins, string asmstr, list<dag> pattern> :
-    P2GenInst<op, always, outs, ins, asmstr, pattern> {
-
-    // C, Z, I (or other values)
-    let Inst{20-18} = flags;
-    // then 9 bit destination
-    let Inst{17-9} = rd; // tbd how to encode these from the operands list.
-    // then 9 bit source
-    let Inst{8-0} = rs;
-}*/
-
 // branch instruction that should execute based on the effects
-// ins must have a "$target" operand
+// ins must have a "$target" operand and it should be the first one in the list
 class P2BranchInst<dag outs, dag ins, P2Cond cond, list<dag> pattern> :
-    P2InstRA<0b1101100, 0b0, cond, outs, ins, "jmp #$target", pattern> {
+    P2InstRA<0b1101100, 0b1, cond, outs, ins, "jmp #$target", pattern> {
 
     let isBarrier = 1;
     let isBranch = 1;

@@ -37,15 +37,6 @@ using namespace llvm;
 
 #define DEBUG_TYPE "p2-isel"
 
-//===----------------------------------------------------------------------===//
-// Instruction Selector Implementation
-//===----------------------------------------------------------------------===//
-
-//===----------------------------------------------------------------------===//
-// P2DAGToDAGISel - P2 specific code to select P2 machine
-// instructions for SelectionDAG operations.
-//===----------------------------------------------------------------------===//
-
 bool P2DAGToDAGISel::runOnMachineFunction(MachineFunction &MF) {
     return SelectionDAGISel::runOnMachineFunction(MF);
 }
@@ -64,28 +55,22 @@ void P2DAGToDAGISel::Select(SDNode *N) {
         return;
     }
 
-    if(FrameIndexSDNode *FIN = dyn_cast<FrameIndexSDNode>(N)) {
+    if (FrameIndexSDNode *FIN = dyn_cast<FrameIndexSDNode>(N)) {
         auto DL = CurDAG->getDataLayout();
         int FI = cast<FrameIndexSDNode>(N)->getIndex();
         SDValue TFI = CurDAG->getTargetFrameIndex(FI, getTargetLowering()->getPointerTy(DL));
 
         CurDAG->SelectNodeTo(N, P2::FRMIDX, getTargetLowering()->getPointerTy(DL), TFI,
-                       CurDAG->getTargetConstant(0, SDLoc(N), MVT::i32));
-
+                                CurDAG->getTargetConstant(0, SDLoc(N), MVT::i32));
         return;
     }
 
-    switch(Opcode) {
-        default:
-            LLVM_DEBUG(errs() << "opcode " << Opcode << "\n");
-        break;
-
-    }
+    LLVM_DEBUG(errs() << "opcode " << Opcode << "\n");
 
     // Select the default instruction
     SelectCode(N);
     LLVM_DEBUG(errs() << "Done selecting\n");
-    LLVM_DEBUG(errs() << "<-------->");
+    LLVM_DEBUG(errs() << "<-------->\n");
 }
 
 FunctionPass *llvm::createP2ISelDag(P2TargetMachine &TM, CodeGenOpt::Level OptLevel) {

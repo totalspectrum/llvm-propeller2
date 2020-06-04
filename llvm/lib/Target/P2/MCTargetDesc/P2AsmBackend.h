@@ -43,7 +43,7 @@ namespace llvm {
         const MCFixupKindInfo &getFixupKindInfo(MCFixupKind Kind) const override;
 
         unsigned getNumFixupKinds() const override {
-            return 0; //P2::NumTargetFixupKinds;
+            return P2::NumTargetFixupKinds;
         }
 
         bool mayNeedRelaxation(const MCInst &Inst, const MCSubtargetInfo &STI) const override {
@@ -57,6 +57,7 @@ namespace llvm {
             llvm_unreachable("RelaxInstruction() unimplemented");
             return false;
         }
+        //bool shouldForceRelocation(const MCAssembler &Asm, const MCFixup &Fixup, const MCValue &Target) override;
 
         //void relaxInstruction(const MCInst &Inst, const MCSubtargetInfo &STI, MCInst &Res) const override {}
 

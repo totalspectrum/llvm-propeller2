@@ -33,6 +33,8 @@ let Namespace = "P2" in {
     //@ General Purpose Registers
     // this will be modified as we adjust how the backend will work since each of the 512 "registers" can store either instructions
     // or data
+    def SP  : P2Reg<0x1df, "sp">, DwarfRegNum<[16]>;
+
     def R0  : P2Reg<0x1e0,  "r0">,  DwarfRegNum<[0]>;
     def R1  : P2Reg<0x1e1,  "r1">,  DwarfRegNum<[1]>;
     def R2  : P2Reg<0x1e2,  "r2">,  DwarfRegNum<[2]>;
@@ -50,14 +52,14 @@ let Namespace = "P2" in {
     def R14 : P2Reg<0x1ee, "r14">, DwarfRegNum<[14]>;
     def R15 : P2Reg<0x1ef, "r15">, DwarfRegNum<[15]>;
 
-    def SP  : P2Reg<0x1df, "sp">, DwarfRegNum<[16]>;
-
-    def SW  : P2Reg<0, "sw">, DwarfRegNum<[20]>; // this is a fake register representing the status word. it can not be directly accessed.
-    def QX  : P2Reg<0, "qx">, DwarfRegNum<[21]>; // this is a fake register for x result of cordic
-    def QY  : P2Reg<0, "qy">, DwarfRegNum<[22]>; // this is a fake register for x result of cordic
+    def SW  : P2Reg<0, "sw">, DwarfRegNum<[20]>; // this is an implicit register representing the status word. it can not be directly accessed.
+    def QX  : P2Reg<0, "qx">, DwarfRegNum<[21]>; // this is an implicit register for x result of cordic
+    def QY  : P2Reg<0, "qy">, DwarfRegNum<[22]>; // this is an implicit register for y result of cordic
 
     def DIRA : P2Reg<0x1fa,  "dira">,  DwarfRegNum<[40]>;
-    def DIRB : P2Reg<0x1fa,  "dirb">,  DwarfRegNum<[40]>;
+    def DIRB : P2Reg<0x1fb,  "dirb">,  DwarfRegNum<[41]>;
+    def OUTA : P2Reg<0x1fc,  "outa">,  DwarfRegNum<[42]>;
+    def OUTB : P2Reg<0x1fd,  "outb">,  DwarfRegNum<[43]>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -66,12 +68,12 @@ let Namespace = "P2" in {
 
 
 def P2GPR : RegisterClass<"P2", [i32], 32, (add
-    // general purpose registers
-    R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, R13, R14, R15,
     // stack pointer
     SP,
+    // general purpose registers
+    R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, R13, R14, R15,
     // i/o registers
-    DIRA, DIRB
+    DIRA, DIRB, OUTA, OUTB
 )>;
 
 def P2Implicit : RegisterClass<"P2", [i32], 32, (add SW, QX, QY)>;

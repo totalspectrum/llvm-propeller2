@@ -4,17 +4,21 @@
     ../build/bin/llc -march=p2 -filetype=obj -debug test6.ll -o test6.o
 */
 
-int x = 0;
+void blink() {
+    asm("outh #56");
+    asm("augd #39062");
+    asm("waitx #256");
+    asm("outl #56");
+    asm("augd #39062");
+    asm("waitx #256");
+}
 
 int main() {
 
+    asm("dirh #56");
+
     while(1) {
-        asm("dirh #56");
-        asm("augd #156250");
-        asm("waitx #0");
-        asm("dirl #56");
-        asm("augd #156250");
-        asm("waitx #0");
+        blink();
     }
     return 0;
 }

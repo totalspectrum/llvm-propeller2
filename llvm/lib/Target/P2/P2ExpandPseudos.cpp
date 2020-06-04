@@ -21,7 +21,7 @@
 
 using namespace llvm;
 
-#define DEBUG_TYPE "P2-expand-pseudos"
+#define DEBUG_TYPE "p2-expand-pseudos"
 
 namespace {
 
@@ -40,6 +40,7 @@ namespace {
 
         void expand_QSREM(MachineFunction &MF, MachineBasicBlock::iterator SII);
         void expand_QUREM(MachineFunction &MF, MachineBasicBlock::iterator SII);
+        void expand_MOVri32(MachineFunction &MF, MachineBasicBlock::iterator SII);
     };
 
     char P2ExpandPseudos::ID = 0;
@@ -80,6 +81,37 @@ void P2ExpandPseudos::expand_QUREM(MachineFunction &MF, MachineBasicBlock::itera
     SI.eraseFromParent();
 }
 
+// eventually we should have an operand in InstrInfo that will automatically convert any immediate to
+// aug the top 23 bits, then mov the lower 9. TBD how to do that. we will still need something like this
+// for global symbols where we don't know the value until linking, so we should always have an AUG instruction
+void P2ExpandPseudos::expand_MOVri32(MachineFunction &MF, MachineBasicBlock::iterator SII) {
+    MachineInstr &SI = *SII;
+
+    LLVM_DEBUG(errs()<<"== lower pseudo mov i32imm\n");
+    LLVM_DEBUG(errs() << "operand type = " << (unsigned)SI.getOperand(1).getType() << "\n");
+
+    if (SI.getOperand(1).isGlobal()) {
+        BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(P2::AUGS))
+            .addImm(0); // we will encode the correct value into this later. if just printing assembly,
+                        // the final optimization pass should remove this instruction
+                        // as a result, the exact printing of this instruction won't be correct
+        BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(P2::MOVri), SI.getOperand(0).getReg())
+            .addGlobalAddress(SI.getOperand(1).getGlobal());
+
+    } else {
+        uint32_t imm = SI.getOperand(1).getImm();
+
+        // expand into an AUGS for the top 23 bits of the immediate and MOVri for the lower 9 bits
+        BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(P2::AUGS))
+            .addImm(imm>>23);
+
+        BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(P2::MOVri), SI.getOperand(0).getReg())
+            .addImm(imm&0x1ff);
+    }
+
+    SI.eraseFromParent();
+}
+
 bool P2ExpandPseudos::runOnMachineFunction(MachineFunction &MF) {
     TII = TM.getInstrInfo();
 
@@ -93,6 +125,9 @@ bool P2ExpandPseudos::runOnMachineFunction(MachineFunction &MF) {
                     break;
                 case P2::QUREM:
                     expand_QUREM(MF, MBBI);
+                    break;
+                case P2::MOVri32:
+                    expand_MOVri32(MF, MBBI);
                     break;
                 default:
                     break;
