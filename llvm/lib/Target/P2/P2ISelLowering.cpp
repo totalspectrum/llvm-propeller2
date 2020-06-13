@@ -43,6 +43,9 @@ How function calling works:
 3. LowerReturn is used to copy the return value to r15 or the stack
 4. LowerCallResult used to copy the return value out of r15 or the stack into the caller's space
 
+Byval arguments: byvals will always be passed by the stack. easier this way for now, since most structs will be
+greater than 4 ints anyway
+
 */
 
 using namespace llvm;
@@ -70,7 +73,7 @@ const char *P2TargetLowering::getTargetNodeName(unsigned Opcode) const {
     #undef NODE
 }
 
-P2TargetLowering::P2TargetLowering(const P2TargetMachine &TM) : TargetLowering(TM) {
+P2TargetLowering::P2TargetLowering(const P2TargetMachine &TM) : TargetLowering(TM), target_machine(TM) {
     addRegisterClass(MVT::i32, &P2::P2GPRRegClass);
 
     //  computeRegisterProperties - Once all of the register classes are
@@ -104,10 +107,6 @@ SDValue P2TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
     }
     return SDValue();
 }
-
-static const MCPhysReg O32IntRegs[] = {
-    P2::R0, P2::R1, P2::R2, P2::R3
-};
 
 /// LowerCall - functions arguments are copied from virtual regs to
 /// physical regs and/or the stack frame, CALLSEQ_START and CALLSEQ_END are emitted.
@@ -153,8 +152,11 @@ SDValue P2TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     std::deque<std::pair<unsigned, SDValue>> RegsToPass;
     SmallVector<SDValue, 8> MemOpChains;
 
+    CCInfo.rewindByValRegsInfo();
+
     // iterate over the argument locations.
     // at each location, push a reg/value pair onto RegsToPass, promoting the type if needed.
+    // if the location is a memory location,
     for (unsigned i = 0; i < ArgLocs.size(); i++) {
         SDValue Arg = OutVals[i];
         CCValAssign &VA = ArgLocs[i];
@@ -187,15 +189,7 @@ SDValue P2TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 
             SDValue PtrOff;
             int off = VA.getLocMemOffset()-4; // -4 because current SP is free
-
-            LLVM_DEBUG(errs() << "offset is " << off << "\n");
-
-            // if (off < 0) {
             PtrOff = DAG.getNode(ISD::SUB, DL, getPointerTy(DAG.getDataLayout()), StackPtr, DAG.getIntPtrConstant(-off, DL));
-            // } else {
-            //    PtrOff = DAG.getNode(ISD::ADD, DL, getPointerTy(DAG.getDataLayout()), StackPtr, DAG.getIntPtrConstant(off, DL));
-            //}
-
             MemOpChains.push_back(DAG.getStore(Chain, DL, Arg, PtrOff, MachinePointerInfo()));
         }
     }
@@ -310,6 +304,13 @@ SDValue P2TargetLowering::LowerFormalArguments(SDValue Chain,
     CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), ArgLocs, *DAG.getContext());
     CCInfo.AnalyzeFormalArguments(Ins, CC_P2);
 
+    P2FI->setFormalArgInfo(CCInfo.getNextStackOffset(), CCInfo.getInRegsParamsCount() > 0);
+
+    const Function &Func = DAG.getMachineFunction().getFunction();
+    Function::const_arg_iterator FuncArg = Func.arg_begin();
+
+    CCInfo.rewindByValRegsInfo();
+
     unsigned CurArgIdx = 0;
 
     // iterate over the argument locations and create copies to virtual registers
@@ -317,6 +318,11 @@ SDValue P2TargetLowering::LowerFormalArguments(SDValue Chain,
         CCValAssign &VA = ArgLocs[i];
         EVT ValVT = VA.getValVT();
         ISD::ArgFlagsTy Flags = Ins[i].Flags;
+
+        if (Flags.isByVal()) {
+            LLVM_DEBUG(errs() << "have a byval argument\n");
+            assert(Flags.getByValSize() && "ByVal args of size 0 should have been ignored by front-end.");
+        }
 
         // Arguments stored on registers
         if (VA.isRegLoc()) {
@@ -380,33 +386,6 @@ SDValue P2TargetLowering::LowerFormalArguments(SDValue Chain,
     return Chain;
 }
 
-void P2TargetLowering::getOpndList(SmallVectorImpl<SDValue> &Ops,
-            std::deque< std::pair<unsigned, SDValue> > &RegsToPass,
-            bool IsPICCall, bool GlobalOrExternal, bool InternalLinkage,
-            CallLoweringInfo &CLI, SDValue Callee, SDValue Chain) const {
-
-    Ops.push_back(Callee);
-
-    // Build a sequence of copy-to-reg nodes chained together with token
-    // chain and flag operands which copy the outgoing args into registers.
-    // The InFlag in necessary since all emitted instructions must be
-    // stuck together.
-    SDValue InFlag;
-
-    for (unsigned i = 0, e = RegsToPass.size(); i != e; ++i) {
-        Chain = CLI.DAG.getCopyToReg(Chain, CLI.DL, RegsToPass[i].first, RegsToPass[i].second, InFlag);
-        InFlag = Chain.getValue(1);
-    }
-
-    // Add argument registers to the end of the list so that they are
-    // known live into the call.
-    for (unsigned i = 0, e = RegsToPass.size(); i != e; ++i)
-        Ops.push_back(CLI.DAG.getRegister(RegsToPass[i].first, RegsToPass[i].second.getValueType()));
-
-    if (InFlag.getNode())
-        Ops.push_back(InFlag);
-}
-
 SDValue P2TargetLowering::LowerReturn(SDValue Chain,
                                         CallingConv::ID CallConv, bool IsVarArg,
                                         const SmallVectorImpl<ISD::OutputArg> &Outs,
@@ -453,6 +432,33 @@ SDValue P2TargetLowering::LowerReturn(SDValue Chain,
     return DAG.getNode(P2ISD::RET, DL, MVT::Other, RetOps);
 }
 
+void P2TargetLowering::getOpndList(SmallVectorImpl<SDValue> &Ops,
+            std::deque< std::pair<unsigned, SDValue> > &RegsToPass,
+            bool IsPICCall, bool GlobalOrExternal, bool InternalLinkage,
+            CallLoweringInfo &CLI, SDValue Callee, SDValue Chain) const {
+
+    Ops.push_back(Callee);
+
+    // Build a sequence of copy-to-reg nodes chained together with token
+    // chain and flag operands which copy the outgoing args into registers.
+    // The InFlag in necessary since all emitted instructions must be
+    // stuck together.
+    SDValue InFlag;
+
+    for (unsigned i = 0, e = RegsToPass.size(); i != e; ++i) {
+        Chain = CLI.DAG.getCopyToReg(Chain, CLI.DL, RegsToPass[i].first, RegsToPass[i].second, InFlag);
+        InFlag = Chain.getValue(1);
+    }
+
+    // Add argument registers to the end of the list so that they are
+    // known live into the call.
+    for (unsigned i = 0, e = RegsToPass.size(); i != e; ++i)
+        Ops.push_back(CLI.DAG.getRegister(RegsToPass[i].first, RegsToPass[i].second.getValueType()));
+
+    if (InFlag.getNode())
+        Ops.push_back(InFlag);
+}
+
 //===----------------------------------------------------------------------===//
 //                           P2 Inline Assembly Support
 //===----------------------------------------------------------------------===//
@@ -467,13 +473,6 @@ P2TargetLowering::ConstraintType P2TargetLowering::getConstraintType(StringRef C
 /// This object must already have been set up with the operand type
 /// and the current alternative constraint selected.
 TargetLowering::ConstraintWeight P2TargetLowering::getSingleConstraintMatchWeight(AsmOperandInfo &info, const char *constraint) const {
-    ConstraintWeight weight = CW_Invalid;
-    Value *CallOperandVal = info.CallOperandVal;
-    // If we don't have a value, we can't do a match,
-    // but allow it at the lowest weight.
-    if (!CallOperandVal)
-        return CW_Default;
-
     return CW_Default;
 }
 
@@ -530,9 +529,12 @@ std::pair<unsigned, const TargetRegisterClass *> P2TargetLowering::getRegForInli
         case 'r':
             if (VT == MVT::i32 || VT == MVT::i16 || VT == MVT::i8) {
                 return std::make_pair(0U, &P2::P2GPRRegClass);
+            } else {
+                llvm_unreachable("Unexpected type for constraint r");
             }
+            break;
         default:
-            assert("Unexpected type.");
+            llvm_unreachable("Unexpected type.");
         }
     }
 
@@ -553,24 +555,3 @@ void P2TargetLowering::LowerAsmOperandForConstraint(SDValue Op,
                                                      SelectionDAG &DAG) const {
     TargetLowering::LowerAsmOperandForConstraint(Op, Constraint, Ops, DAG);
 }
-
-// bool P2TargetLowering::isLegalAddressingMode(const DataLayout &DL,
-//                                                const AddrMode &AM, Type *Ty,
-//                                                unsigned AS) const {
-//   // No global is ever allowed as a base.
-//   if (AM.BaseGV)
-//     return false;
-
-//   switch (AM.Scale) {
-//   case 0: // "r+i" or just "i", depending on HasBaseReg.
-//     break;
-//   case 1:
-//     if (!AM.HasBaseReg) // allow "r+i".
-//       break;
-//     return false; // disallow "r+r" or "r+r+i".
-//   default:
-//     return false;
-//   }
-
-//   return true;
-// }

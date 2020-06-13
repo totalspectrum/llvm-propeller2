@@ -1,10 +1,22 @@
-ENTRY(main)
+ENTRY(_start)
 SECTIONS
 {
+    . = 0x00000;
+    .text : {
+        *(.text._start);
+    }
+
     . = 0x00400;
-    .text :
-    {
+    .text : {
         *(.text.main);
         *(.text*);
+    }
+
+    .rodata : {
+        *(.rodata*);
+    }
+
+    .bss : {
+        *(.bss);
     }
 }

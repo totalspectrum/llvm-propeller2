@@ -42,7 +42,7 @@ bool P2DAGToDAGISel::runOnMachineFunction(MachineFunction &MF) {
 }
 
 void P2DAGToDAGISel::Select(SDNode *N) {
-    unsigned Opcode = N->getOpcode();
+    //unsigned Opcode = N->getOpcode();
 
     // Dump information about the Node being selected
     LLVM_DEBUG(errs() << "<-------->\n");
@@ -60,17 +60,13 @@ void P2DAGToDAGISel::Select(SDNode *N) {
         int FI = cast<FrameIndexSDNode>(N)->getIndex();
         SDValue TFI = CurDAG->getTargetFrameIndex(FI, getTargetLowering()->getPointerTy(DL));
 
-        CurDAG->SelectNodeTo(N, P2::FRMIDX, getTargetLowering()->getPointerTy(DL), TFI,
-                                CurDAG->getTargetConstant(0, SDLoc(N), MVT::i32));
+        CurDAG->SelectNodeTo(N, P2::FRMIDX, getTargetLowering()->getPointerTy(DL), TFI);
         return;
     }
 
-    LLVM_DEBUG(errs() << "opcode " << Opcode << "\n");
-
     // Select the default instruction
     SelectCode(N);
-    LLVM_DEBUG(errs() << "Done selecting\n");
-    LLVM_DEBUG(errs() << "<-------->\n");
+    LLVM_DEBUG(errs() << "Done selecting, chose "; N->dump());
 }
 
 FunctionPass *llvm::createP2ISelDag(P2TargetMachine &TM, CodeGenOpt::Level OptLevel) {

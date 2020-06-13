@@ -56,7 +56,7 @@ void P2InstPrinter::printInst(const MCInst *MI, uint64_t Address,
     uint64_t flags = MI->getFlags();
     uint64_t cond = flags & 0xf;
     if (cond == P2::ALWAYS) {
-        O << "\t"; // add a extra tab when we don't have an effect string
+        O << "\t"; // add a extra tab when we don't have a condition string
     }
     O << "\t" << cond_lut[cond];
     printInstruction(MI, Address, O);
@@ -90,7 +90,6 @@ static void printExpr(const MCExpr *Expr, const MCAsmInfo *MAI, raw_ostream &OS)
 }
 
 void P2InstPrinter::printOperand(const MCInst *MI, unsigned OpNum, raw_ostream &O) {
-    LLVM_DEBUG(errs() << "print operand op num = " << OpNum << "\n");
     const MCOperand &Op = MI->getOperand(OpNum);
     if (Op.isReg()) {
         printRegName(O, Op.getReg());

@@ -1,4 +1,7 @@
-/* compilation:
+/*
+  This tests function calling and passing arguments to the function
+
+  compilation:
     ../build/bin/clang -target p2 -S -c test5.cpp -emit-llvm -o test5.ll
     ../build/bin/llc -march=p2 -filetype=asm -debug test5.ll -o test5.s
     ../build/bin/llc -march=p2 -filetype=obj -debug test5.ll -o test5.o

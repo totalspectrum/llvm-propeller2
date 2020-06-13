@@ -61,10 +61,12 @@ bool P2FrameLowering::hasFP(const MachineFunction &MF) const {
     const MachineFrameInfo *MFI = &MF.getFrameInfo();
     const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
 
-    // LLVM_DEBUG(errs() << "hasFP = disable FP elim: " << MF.getTarget().Options.DisableFramePointerElim(MF) <<
-    //             "; var sized objects: " << MFI->hasVarSizedObjects() <<
-    //             "; frame address is taken: " << MFI->isFrameAddressTaken() <<
-    //             "; needs stack realignment: " << TRI->needsStackRealignment(MF) << "\n");
+    LLVM_DEBUG(errs() << "hasFP = disable FP elim: " << MF.getTarget().Options.DisableFramePointerElim(MF) <<
+                "; var sized objects: " << MFI->hasVarSizedObjects() <<
+                "; frame address is taken: " << MFI->isFrameAddressTaken() <<
+                "; needs stack realignment: " << TRI->needsStackRealignment(MF) << "\n");
+
+    // I don't think we'll ever need a frame pointer
 
     return MF.getTarget().Options.DisableFramePointerElim(MF) ||
             MFI->hasVarSizedObjects() || MFI->isFrameAddressTaken() ||
@@ -89,11 +91,10 @@ void P2FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) 
         llvm_unreachable("can't yet emit prologues for vararg functions");
     }
 
-    if (!hasFP(MF)) {
-        // no frame pointer, we can return early, right?
-        LLVM_DEBUG(errs()<<"no frame pointer in function");
-        return;
-    }
+    // if (!hasFP(MF)) {
+    //     // no frame pointer, we can return early, right?
+    //     return;
+    // }
 
     uint64_t StackSize = MFI.getStackSize();
 
@@ -136,17 +137,18 @@ void P2FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) 
     const P2InstrInfo *TII = MF.getSubtarget<P2Subtarget>().getInstrInfo();
 
     // if framepointer enabled, restore the stack pointer.
-    if (hasFP(MF)) {
-        // Find the first instruction that restores a callee-saved register.
-        // MachineBasicBlock::iterator I = MBBI;
+    // if (hasFP(MF)) {
+    //     llvm_unreachable("emit epilogue: hasFP not implemented");
+    //     // Find the first instruction that restores a callee-saved register.
+    //     // MachineBasicBlock::iterator I = MBBI;
 
-        // for (unsigned i = 0; i < MFI->getCalleeSavedInfo().size(); ++i) {
-        //     --I;
-        // }
+    //     // for (unsigned i = 0; i < MFI->getCalleeSavedInfo().size(); ++i) {
+    //     //     --I;
+    //     // }
 
-        // // Insert instruction "move $sp, $fp" at this location.
-        // BuildMI(MBB, I, dl, TII.get(ADDu), SP).addReg(FP).addReg(ZERO);
-    }
+    //     // // Insert instruction "move $sp, $fp" at this location.
+    //     // BuildMI(MBB, I, dl, TII.get(ADDu), SP).addReg(FP).addReg(ZERO);
+    // }
 
     // Get the number of bytes from FrameInfo
     uint64_t StackSize = MFI->getStackSize();
@@ -163,16 +165,18 @@ void P2FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) 
 MachineBasicBlock::iterator P2FrameLowering::eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
                                 MachineBasicBlock::iterator I) const {
 
+    LLVM_DEBUG(errs() << "=== eliminate call frame pseudo\n");
+
     if (!hasReservedCallFrame(MF)) {
         int64_t Amount = I->getOperand(0).getImm();
 
         if (I->getOpcode() == P2::ADJCALLSTACKDOWN)
             Amount = -Amount;
 
-        tm.getInstrInfo()->adjustStackPtr(P2::SP, Amount, MBB, I);
+        if (Amount)
+            tm.getInstrInfo()->adjustStackPtr(P2::SP, Amount, MBB, I);
     }
 
-    LLVM_DEBUG(errs() << "eliminate call frame pseudo\n");
 
     return MBB.erase(I);
 }

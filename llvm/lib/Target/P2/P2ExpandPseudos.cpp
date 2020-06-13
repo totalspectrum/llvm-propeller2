@@ -51,13 +51,13 @@ void P2ExpandPseudos::expand_QSREM(MachineFunction &MF, MachineBasicBlock::itera
     MachineInstr &SI = *SII;
 
     LLVM_DEBUG(errs()<<"== lower pseudo signed remainder\n");
-    SI.dump();
+    LLVM_DEBUG(SI.dump());
 
     BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(P2::QDIV))
-            .addReg(P2::QX, RegState::Define)
-            .addReg(P2::QY, RegState::Define)
             .addReg(SI.getOperand(1).getReg())
-            .addReg(SI.getOperand(2).getReg());
+            .addReg(SI.getOperand(2).getReg())
+            .addReg(P2::QX, RegState::Define)
+            .addReg(P2::QY, RegState::Define); // put the implicit registers at the end so that encoder/decoder first reads the real operands
     BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(P2::GETQY), SI.getOperand(0).getReg())
             .addReg(P2::QY);
 
@@ -68,7 +68,7 @@ void P2ExpandPseudos::expand_QUREM(MachineFunction &MF, MachineBasicBlock::itera
     MachineInstr &SI = *SII;
 
     LLVM_DEBUG(errs()<<"== lower pseudo unsigned remainder\n");
-    SI.dump();
+    LLVM_DEBUG(SI.dump());
 
     BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(P2::QDIV))
             .addReg(P2::QX, RegState::Define)
@@ -103,7 +103,7 @@ void P2ExpandPseudos::expand_MOVri32(MachineFunction &MF, MachineBasicBlock::ite
 
         // expand into an AUGS for the top 23 bits of the immediate and MOVri for the lower 9 bits
         BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(P2::AUGS))
-            .addImm(imm>>23);
+            .addImm(imm>>9);
 
         BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(P2::MOVri), SI.getOperand(0).getReg())
             .addImm(imm&0x1ff);

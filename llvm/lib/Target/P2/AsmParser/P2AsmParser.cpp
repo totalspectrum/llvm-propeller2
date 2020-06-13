@@ -419,6 +419,8 @@ int P2AsmParser::matchRegisterName(StringRef Name) {
             .Case("r14",    P2::R14)
             .Case("r15",    P2::R15)
             .Case("sp",     P2::SP)
+            .Case("ptra",   P2::PTRA)
+            .Case("ptrb",   P2::PTRB)
             .Case("dira",   P2::DIRA)
             .Case("dirb",   P2::DIRB)
             .Default(-1);

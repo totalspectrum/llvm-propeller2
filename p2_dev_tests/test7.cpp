@@ -1,48 +1,62 @@
-/* compilation:
-    ../build/bin/clang -target p2 -S -c test7.cpp -emit-llvm -o test7.ll
-    ../build/bin/llc -march=p2 -filetype=asm -debug test7.ll -o test7.s
-    ../build/bin/llc -march=p2 -filetype=obj -debug test7.ll -o test7.o
+/*
+  This tests structs and passing byvals into and out of functions. more datatypes are intruduced as well,
+  a simple propeller library is created, and crt0 is created to load multiple cogs with parameters passed to the code
+  a make file is introduced to build and link everything
+
+  compilation:
+    make
 */
 
-void blink1() {
+#include "propeller2.h"
 
-    asm("dirh #56");
+unsigned int blink1_stack[32];
+unsigned int blink2_stack[32];
+
+struct led_mb_t {
+    char pin;
+    int delay;
+};
+
+void blink(void *par) {
+    led_mb_t *led = (led_mb_t*)par;
+
+    dirh(led->pin);
 
     while(1) {
-        asm("outh #56");
-        asm("augd #39062");
-        asm("waitx #256");
-        asm("outl #56");
-        asm("augd #39062");
-        asm("waitx #256");
+        outl(led->pin);
+        waitx(led->delay);
+        outh(led->pin);
+        waitx(led->delay);
     }
 }
 
-void blink2() {
-
-    asm("dirh #57");
-
-    while(1) {
-        asm("outh #57");
-        asm("augd #19531");
-        asm("waitx #128");
-        asm("outl #57");
-        asm("augd #19531");
-        asm("waitx #128");
+led_mb_t modify_led_mb(led_mb_t l) {
+    if (l.pin == 56) {
+        l.pin = 57;
+    } else {
+        l.pin = 58;
     }
+
+    if (l.delay == 25000000) {
+        l.delay = 5000000;
+    }
+
+    return l;
 }
 
 int main() {
 
-    asm("coginit #48, %0"
-                : // no outputs
-                : "r" (blink1)
-        );
+    //waitx(12500000);
 
-    asm("coginit #48, %0"
-                : // no outputs
-                : "r" (blink2)
-        );
+    led_mb_t led1;
+    led_mb_t led2;
+
+    led1.pin = 56;
+    led1.delay = 25000000;
+    led2 = modify_led_mb(led1);
+
+    cognew(blink, (int)&led1, (int*)blink1_stack);
+    cognew(blink, (int)&led2, (int*)blink2_stack);
 
     while(1);
 

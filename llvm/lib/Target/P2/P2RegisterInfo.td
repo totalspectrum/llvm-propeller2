@@ -55,11 +55,14 @@ let Namespace = "P2" in {
     def SW  : P2Reg<0, "sw">, DwarfRegNum<[20]>; // this is an implicit register representing the status word. it can not be directly accessed.
     def QX  : P2Reg<0, "qx">, DwarfRegNum<[21]>; // this is an implicit register for x result of cordic
     def QY  : P2Reg<0, "qy">, DwarfRegNum<[22]>; // this is an implicit register for y result of cordic
+    def N   : P2Reg<0, "n">, DwarfRegNum<[23]>; // implicit register for result of augs/augd instructions
 
-    def DIRA : P2Reg<0x1fa,  "dira">,  DwarfRegNum<[40]>;
-    def DIRB : P2Reg<0x1fb,  "dirb">,  DwarfRegNum<[41]>;
-    def OUTA : P2Reg<0x1fc,  "outa">,  DwarfRegNum<[42]>;
-    def OUTB : P2Reg<0x1fd,  "outb">,  DwarfRegNum<[43]>;
+    def PTRA : P2Reg<0x1f8, "ptra">, DwarfRegNum<[40]>;
+    def PTRB : P2Reg<0x1f9, "ptrb">, DwarfRegNum<[41]>;
+    def DIRA : P2Reg<0x1fa, "dira">, DwarfRegNum<[42]>;
+    def DIRB : P2Reg<0x1fb, "dirb">, DwarfRegNum<[43]>;
+    def OUTA : P2Reg<0x1fc, "outa">, DwarfRegNum<[44]>;
+    def OUTB : P2Reg<0x1fd, "outb">, DwarfRegNum<[45]>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -72,9 +75,11 @@ def P2GPR : RegisterClass<"P2", [i32], 32, (add
     SP,
     // general purpose registers
     R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, R13, R14, R15,
+    // cog pointer regsiters
+    PTRA, PTRB,
     // i/o registers
     DIRA, DIRB, OUTA, OUTB
 )>;
 
-def P2Implicit : RegisterClass<"P2", [i32], 32, (add SW, QX, QY)>;
+def P2Implicit : RegisterClass<"P2", [i32], 32, (add SW, QX, QY, N)>;
 

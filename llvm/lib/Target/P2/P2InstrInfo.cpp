@@ -22,6 +22,8 @@
 
 using namespace llvm;
 
+#define DEBUG_TYPE "p2-inst-info"
+
 #define GET_INSTRINFO_CTOR_DTOR
 #include "P2GenInstrInfo.inc"
 
@@ -55,7 +57,11 @@ void P2InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
         llvm_unreachable("Cannot load this register from a stack slot!");
     }
 
-    BuildMI(MBB, MI, DL, get(Opcode), DestReg).addFrameIndex(FrameIndex).addMemOperand(MMO);
+    BuildMI(MBB, MI, DL, get(Opcode), DestReg)
+        .addFrameIndex(FrameIndex)
+        .addMemOperand(MMO);
+
+    LLVM_DEBUG(errs() << ">> load reg " << DestReg << " from stack " << FrameIndex << "\n");
 }
 
 void P2InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
@@ -94,15 +100,19 @@ void P2InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
     }
 
     BuildMI(MBB, MI, DL, get(Opcode))
-        .addFrameIndex(FrameIndex)
         .addReg(SrcReg, getKillRegState(isKill))
+        .addFrameIndex(FrameIndex)
         .addMemOperand(MMO);
+
+    LLVM_DEBUG(errs() << ">> store reg " << SrcReg << " to stack " << FrameIndex << "\n");
 }
 
 void P2InstrInfo::adjustStackPtr(unsigned SP, int64_t amount, MachineBasicBlock &MBB, MachineBasicBlock::iterator I) const {
     DebugLoc DL = I != MBB.end() ? I->getDebugLoc() : DebugLoc();
 
     unsigned inst = P2::ADDri;
+
+    LLVM_DEBUG(errs() << "adjust stack pointer by " << amount << "\n");
 
     if (amount < 0) {
         inst = P2::SUBri;
@@ -115,8 +125,8 @@ void P2InstrInfo::adjustStackPtr(unsigned SP, int64_t amount, MachineBasicBlock 
             BuildMI(MBB, I, DL, get(P2::AUGS)).addImm(amount>>9);
         }
 
-        BuildMI(MBB, I, DL, get(inst), SP).addReg(SP).addImm(amount);
+        BuildMI(MBB, I, DL, get(inst), SP).addReg(SP).addImm(amount&0x1ff);
     } else {
-        llvm_unreachable("Cannot adjust stack pointer by more than 32 bits (and adjusting by more than 20 bits ever makes sense!)");
+        llvm_unreachable("Cannot adjust stack pointer by more than 32 bits (and adjusting by more than 20 bits never makes sense!)");
     }
 }

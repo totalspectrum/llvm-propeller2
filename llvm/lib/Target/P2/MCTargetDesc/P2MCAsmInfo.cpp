@@ -21,10 +21,6 @@ void P2MCAsmInfo::anchor() { }
 
 P2MCAsmInfo::P2MCAsmInfo(const Triple &TheTriple, const MCTargetOptions &Options) {
     IsLittleEndian = true;
-    //SupportsDebugInformation = true;
-    // Data16bitsDirective = "\t.short\t";
-    // Data32bitsDirective = "\t.int\t";
-    // ZeroDirective = "\t.space\t";
     CommentString = "\'\'";
 
     UsesELFSectionDirectiveForBSS = true;
@@ -32,8 +28,9 @@ P2MCAsmInfo::P2MCAsmInfo(const Triple &TheTriple, const MCTargetOptions &Options
     HiddenVisibilityAttr = MCSA_Invalid;
     HiddenDeclarationVisibilityAttr = MCSA_Invalid;
     ProtectedVisibilityAttr = MCSA_Invalid;
-
-    // Debug
-    ExceptionsType = ExceptionHandling::DwarfCFI;
-    DwarfRegNumForCFI = true;
+    UseIntegratedAssembler = true;
+    PreserveAsmComments = true;
+    // // Debug
+    // ExceptionsType = ExceptionHandling::DwarfCFI;
+    // DwarfRegNumForCFI = true;
 }

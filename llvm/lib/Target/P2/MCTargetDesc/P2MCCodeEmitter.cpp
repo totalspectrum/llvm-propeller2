@@ -53,9 +53,9 @@ void P2MCCodeEmitter::emitInstruction(uint64_t Val, unsigned Size, raw_ostream &
 /// Size the instruction (currently only 4 bytes)
 void P2MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
     LLVM_DEBUG(errs() << "==== begin encode ====\n");
-    uint32_t bin = getBinaryCodeForInstr(MI, Fixups, STI);
-
     LLVM_DEBUG(MI.dump());
+
+    uint32_t bin = getBinaryCodeForInstr(MI, Fixups, STI);
 
     // Check for unimplemented opcodes.
     unsigned op_code = MI.getOpcode();

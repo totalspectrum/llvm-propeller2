@@ -57,22 +57,29 @@ static const uint16_t GPRDecoderTable[] = {
 	P2::R4, P2::R5, P2::R6, P2::R7,
 	P2::R8, P2::R9, P2::R10, P2::R11,
 	P2::R12, P2::R13, P2::R14, P2::R15,
+    0, 0, 0, 0, 0, 0, 0, 0, P2::PTRA, P2::PTRB, // place holders for now.
     P2::DIRA, P2::DIRB, P2::OUTA, P2::OUTB
 };
+
+static uint16_t getRegForField(uint16_t r) {
+    if (r < 0x1df || r > 0x1ff) {
+        LLVM_DEBUG(errs() << "register address: " << r << "\n");
+        llvm_unreachable("bad register address!");
+    }
+
+    return GPRDecoderTable[r-0x1df];
+}
 
 static DecodeStatus DecodeP2GPRRegisterClass(MCInst &Inst, unsigned RegNo, uint64_t Address, const void *Decoder);
 static DecodeStatus DecodeIOInstruction(MCInst &Inst, unsigned Insn, uint64_t Address, const void *Decoder);
 static DecodeStatus DecodeJumpInstruction(MCInst &Inst, unsigned Insn, uint64_t Address, const void *Decoder);
+static DecodeStatus DecodeCmpInstruction(MCInst &Inst, unsigned Insn, uint64_t Address, const void *Decoder);
+static DecodeStatus DecodeCordicInstruction(MCInst &Inst, unsigned Insn, uint64_t Address, const void *Decoder);
 
 #include "P2GenDisassemblerTables.inc"
 
 static DecodeStatus DecodeP2GPRRegisterClass(MCInst &Inst, unsigned RegNo, uint64_t Address, const void *Decoder) {
-    RegNo -= 0x1df; // offset to the register encodings.
-
-    if (RegNo > 20)
-		return MCDisassembler::Fail;
-
-	unsigned Register = GPRDecoderTable[RegNo];
+	unsigned Register = getRegForField(RegNo);
 	Inst.addOperand(MCOperand::createReg(Register));
 	return MCDisassembler::Success;
 }
@@ -106,8 +113,61 @@ static DecodeStatus DecodeIOInstruction(MCInst &Inst, unsigned Insn, uint64_t Ad
     if (is_imm) {
         Inst.addOperand(MCOperand::createImm(d_field));
     } else {
-        Inst.addOperand(MCOperand::createReg(GPRDecoderTable[d_field-0x1df]));
+        Inst.addOperand(MCOperand::createReg(getRegForField(d_field)));
     }
+
+    return MCDisassembler::Success;
+}
+
+static DecodeStatus DecodeCmpInstruction(MCInst &Inst, unsigned Insn, uint64_t Address, const void *Decoder) {
+
+    LLVM_DEBUG(errs() << "decode CMP instruction\n");
+
+    unsigned d_field = fieldFromInstruction(Insn, 9, 9);
+    unsigned s_field = fieldFromInstruction(Insn, 0, 9);
+    unsigned is_imm = fieldFromInstruction(Insn, 18, 1);
+
+    // first add the operand that is getting implicitly written, which in our case is the status flags.
+    // similar to above with I/O.
+    Inst.addOperand(MCOperand::createReg(P2::SW));
+
+    Inst.addOperand(MCOperand::createReg(getRegForField(d_field)));
+
+    if (is_imm) {
+        Inst.addOperand(MCOperand::createImm(s_field));
+    } else {
+        Inst.addOperand(MCOperand::createReg(getRegForField(s_field)));
+    }
+
+    return MCDisassembler::Success;
+}
+
+static DecodeStatus DecodeCordicInstruction(MCInst &Inst, unsigned Insn, uint64_t Address, const void *Decoder) {
+    LLVM_DEBUG(errs() << "cordic decode...\n");
+
+    unsigned d_field = fieldFromInstruction(Insn, 9, 9);
+    unsigned s_field = fieldFromInstruction(Insn, 0, 9);
+    unsigned d_is_imm = fieldFromInstruction(Insn, 19, 1);
+    unsigned s_is_imm = fieldFromInstruction(Insn, 18, 1);
+
+    LLVM_DEBUG(errs() << "d = " << d_field << "; L = " << d_is_imm << "\n");
+    LLVM_DEBUG(errs() << "s = " << s_field << "; I = " << s_is_imm << "\n");
+
+    if (d_is_imm) {
+        Inst.addOperand(MCOperand::createImm(d_field));
+    } else {
+        Inst.addOperand(MCOperand::createReg(getRegForField(d_field)));
+    }
+
+    if (s_is_imm) {
+        Inst.addOperand(MCOperand::createImm(s_field));
+    } else {
+        Inst.addOperand(MCOperand::createReg(getRegForField(s_field)));
+    }
+
+    // add the implicit operands in case they are needed somewhere
+    Inst.addOperand(MCOperand::createReg(P2::QX));
+    Inst.addOperand(MCOperand::createReg(P2::QY));
 
     return MCDisassembler::Success;
 }
@@ -134,8 +194,11 @@ DecodeStatus P2Disassembler::getInstruction(MCInst &Instr, uint64_t &Size, Array
 	Result = readInstruction(Bytes, Address, Size, Insn);
 	if (Result == MCDisassembler::Fail) return MCDisassembler::Fail;
     // set the TSFlags for the instruction printer
+    // FIXME: add writing the C/Z flags to TSFlags for printing
     unsigned cond = fieldFromInstruction(Insn, 28, 4);
     Instr.setFlags((Instr.getFlags() & 0xf) | cond);
+
+    LLVM_DEBUG(errs() << "get instruction: " << Insn << "\n");
 
 	Result = decodeInstruction(DecoderTableP232, Instr, Insn, Address, this, STI);
 

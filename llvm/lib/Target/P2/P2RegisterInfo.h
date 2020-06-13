@@ -36,6 +36,10 @@ namespace llvm {
 
         BitVector getReservedRegs(const MachineFunction &MF) const override;
 
+        bool requiresRegisterScavenging(const MachineFunction &MF) const override {
+            return true;
+        }
+
         /// Stack Frame Processing Methods
         void eliminateFrameIndex(MachineBasicBlock::iterator II, int SPAdj, unsigned FIOperandNum, RegScavenger *RS = nullptr) const override;
 

@@ -46,6 +46,9 @@ namespace llvm {
 
     //@class P2TargetLowering
     class P2TargetLowering : public TargetLowering  {
+
+        const P2TargetMachine &target_machine;
+
     public:
         explicit P2TargetLowering(const P2TargetMachine &TM);
 
@@ -54,6 +57,11 @@ namespace llvm {
         const char *getTargetNodeName(unsigned Opcode) const override;
 
         SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
+
+        bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const override{
+            // Can't fold offsets, so need to add explicit instruction
+            return false;
+        }
 
     private:
 
@@ -77,8 +85,6 @@ namespace llvm {
         /// being processed is 'm'.
         void LowerAsmOperandForConstraint(SDValue Op, std::string &Constraint, std::vector<SDValue> &Ops, SelectionDAG &DAG) const override;
 
-        //bool isLegalAddressingMode(const DataLayout &DL, const AddrMode &AM, Type *Ty, unsigned AS) const override;
-
         void getOpndList(SmallVectorImpl<SDValue> &Ops,
                 std::deque< std::pair<unsigned, SDValue> > &RegsToPass,
                 bool IsPICCall, bool GlobalOrExternal, bool InternalLinkage,
@@ -100,6 +106,15 @@ namespace llvm {
         SDValue LowerCall(TargetLowering::CallLoweringInfo &CLI,
                           SmallVectorImpl<SDValue> &InVals) const override;
 
+        //void HandleByVal(CCState *State, unsigned &Size, unsigned Align) const override;
+
+        void passByValArg(SDValue Chain, const SDLoc &DL, SmallVectorImpl<SDValue> &MemOpChains, SDValue StackPtr, MachineFrameInfo &MFI,
+                            SelectionDAG &DAG, SDValue Arg, const ISD::ArgFlagsTy &Flags, const CCValAssign &VA) const;
+
+        // void copyByValRegs(SDValue Chain, const SDLoc &DL, std::vector<SDValue> &OutChains,SelectionDAG &DAG,
+        //                     const ISD::ArgFlagsTy &Flags, SmallVectorImpl<SDValue> &InVals, const Argument *FuncArg,
+        //                     unsigned FirstReg, unsigned LastReg, const CCValAssign &VA) const;
+
 
         // Lower Operand specifics
         SDValue lowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
@@ -109,7 +124,6 @@ namespace llvm {
                             const SmallVectorImpl<ISD::OutputArg> &Outs,
                             const SmallVectorImpl<SDValue> &OutVals,
                             const SDLoc &dl, SelectionDAG &DAG) const override;
-
     };
 }
 

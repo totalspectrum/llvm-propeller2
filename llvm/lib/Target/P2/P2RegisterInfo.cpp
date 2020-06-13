@@ -19,6 +19,7 @@
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "llvm/CodeGen/RegisterScavenging.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Target/TargetMachine.h"
@@ -44,13 +45,16 @@ const MCPhysReg* P2RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) c
 BitVector P2RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
     BitVector Reserved(getNumRegs());
     Reserved.set(P2::SP);
+    Reserved.set(P2::PTRA);
+    Reserved.set(P2::PTRB);
+    Reserved.set(P2::OUTA);
+    Reserved.set(P2::OUTB);
+    Reserved.set(P2::DIRA);
+    Reserved.set(P2::DIRB);
     return Reserved;
 }
 
-void
-P2RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
-                                        int SPAdj, unsigned FIOperandNum,
-                                        RegScavenger *RS) const {
+void P2RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int SPAdj, unsigned FIOperandNum, RegScavenger *RS) const {
 
     // get a bunch of target info classes
     MachineInstr &MI = *II;
@@ -62,10 +66,11 @@ P2RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     const TargetInstrInfo &inst_info = *TM.getInstrInfo();
     const TargetFrameLowering *TFI = TM.getFrameLowering();
 
-    LLVM_DEBUG(errs() << "\nFunction : " << MF.getFunction().getName() << "\n";
+    LLVM_DEBUG(
+        errs() << "\nFunction : " << MF.getFunction().getName() << "\n";
         errs() << "<--------->\n" << MI);
 
-    // the final offset will be stack size - frame offset - local area offset (0) - frmidx immediate
+    // the final offset will be stack size - frame offset - local area offset (0)
     int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
     uint64_t stackSize = MFI.getStackSize();
     int64_t fi_offset = MFI.getObjectOffset(FrameIndex);
@@ -73,29 +78,46 @@ P2RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
 
     offset += stackSize - fi_offset;
     offset += TFI->getOffsetOfLocalArea(); // LOA should be 0 for P2
-    offset += MI.getOperand(FIOperandNum+1).getImm();
-
-    LLVM_DEBUG(errs() << "frmidx next operand : " << MI.getOperand(FIOperandNum+1).getImm() << "\n");
-
-    MI.setDesc(inst_info.get(P2::MOVrr)); // change our psesudo instruction to a mov
-    MI.getOperand(FIOperandNum).ChangeToRegister(P2::SP, false); // change the abstract frame index register to our real frame pointer register
-    MI.RemoveOperand(2); // remove the 3rd operand this instruction
-
+    //offset += MI.getOperand(FIOperandNum+1).getImm();
     assert(offset >= 0 && "Invalid offset"); // offset should be positive or 0
-
-    Register dst_reg = MI.getOperand(0).getReg();
-    II++; // skip forward by 1 instruction
-
-    BuildMI(*MI.getParent(), II, dl, inst_info.get(P2::SUBri), dst_reg)
-                            .addReg(dst_reg, RegState::Kill)
-                            .addImm(offset);
-
     LLVM_DEBUG(errs() << "FrameIndex : " << FrameIndex << "\n"
                         << "stackSize  : " << stackSize << "\n"
                         << "fi offset : " << fi_offset << "\n");
 
     LLVM_DEBUG(errs() << "Offset     : " << offset << "\n" << "<--------->\n");
 
+    // FIXME for non-FRMIDX instructions!
+    if (MI.getOpcode() == P2::FRMIDX) {
+        MI.setDesc(inst_info.get(P2::MOVrr)); // change our psesudo instruction to a mov
+        MI.getOperand(FIOperandNum).ChangeToRegister(P2::SP, false); // change the abstract frame index register to our real stack pointer register
+        //MI.RemoveOperand(2); // remove the 3rd operand this instruction
+
+        Register dst_reg = MI.getOperand(0).getReg();
+        II++; // skip forward by 1 instruction
+
+        BuildMI(*MI.getParent(), II, dl, inst_info.get(P2::SUBri), dst_reg)
+                                .addReg(dst_reg, RegState::Kill)
+                                .addImm(offset);
+    } else {
+        Register reg = RS->FindUnusedReg(&P2::P2GPRRegClass);
+        if (!reg) {
+            reg = RS->scavengeRegister(&P2::P2GPRRegClass, II, SPAdj);
+            RS->setRegUsed(reg);
+        }
+
+        assert(reg && "Need to have a register for frame index elimination");
+
+        LLVM_DEBUG(errs() << "got reg to use " << reg << "\n");
+
+        BuildMI(*MI.getParent(), II, dl, inst_info.get(P2::MOVrr), reg)
+                                .addReg(P2::SP); // save the SP to an unused register
+
+        BuildMI(*MI.getParent(), II, dl, inst_info.get(P2::SUBri), reg)
+                                .addReg(reg, RegState::Kill)
+                                .addImm(offset); // adjust saved SP by frame index offset
+
+        (*II).getOperand(FIOperandNum).ChangeToRegister(reg, false);
+    }
 }
 
 Register P2RegisterInfo::getFrameRegister(const MachineFunction &MF) const {
