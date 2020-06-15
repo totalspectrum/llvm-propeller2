@@ -55,10 +55,11 @@ void P2DAGToDAGISel::Select(SDNode *N) {
         return;
     }
 
-    if (FrameIndexSDNode *FIN = dyn_cast<FrameIndexSDNode>(N)) {
+    if (N->getOpcode() == ISD::FrameIndex) {
+        LLVM_DEBUG(errs() << "frame index node is being selected\n");
+        FrameIndexSDNode *FIN = dyn_cast<FrameIndexSDNode>(N);
         auto DL = CurDAG->getDataLayout();
-        int FI = cast<FrameIndexSDNode>(N)->getIndex();
-        SDValue TFI = CurDAG->getTargetFrameIndex(FI, getTargetLowering()->getPointerTy(DL));
+        SDValue TFI = CurDAG->getTargetFrameIndex(FIN->getIndex(), getTargetLowering()->getPointerTy(DL));
 
         CurDAG->SelectNodeTo(N, P2::FRMIDX, getTargetLowering()->getPointerTy(DL), TFI);
         return;

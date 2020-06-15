@@ -3,10 +3,10 @@ CC = $(LLVM)/bin/clang
 LD = $(LLVM)/bin/ld.lld
 LOAD = loadp2
 
-TARGET = test8
+TARGET = test7
 OBJDIR = build
 
-CFLAGS = -ffunction-sections --target=p2
+CFLAGS = -ffunction-sections --target=p2 -Os
 LFLAGS = -Tp2.ld
 LOADFLAGS = -v -ZERO
 
@@ -21,13 +21,13 @@ $(OBJDIR)/$(TARGET).elf: $(OBJDIR)/$(TARGET).o $(OBJDIR)/propeller2.o $(OBJDIR)/
 		$(LD) $(LFLAGS) -o $@ $^
 
 $(OBJDIR)/$(TARGET).o: $(TARGET).cpp propeller2.h
-		$(CC) $(CFLAGS) -o $@ -c $< # -mllvm -debug #--debug-only=p2-isel,isel
+		$(CC) $(CFLAGS) -o $@ -c $< #-mllvm -debug #--debug-only=p2-isel,isel,p2-expand-pseudos,mccodeemitter
 
 $(OBJDIR)/propeller2.o: propeller2.c propeller2.h
 		$(CC) $(CFLAGS) -o $@ -c $<
 
 $(OBJDIR)/crt0.o: crt0.c
-		$(CC) $(CFLAGS) -o $@ -c $<
+		$(CC) $(CFLAGS) -o $@ -c $< -mllvm --debug-only=p2-asm-parser
 
 load:
 	$(LOAD) $(LOADFLAGS) $(OBJDIR)/$(TARGET).elf

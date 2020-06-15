@@ -33,6 +33,8 @@ def calltarget : Operand<iPTR> {
     let EncoderMethod = "encodeCallTarget";
 }
 
+def condcode : Operand<OtherVT> {}
+
 def HI23 : SDNodeXForm<imm, [{
     // Transformation function: shift the upper 23 of the imm value down into the low bits.
     return getI32Imm((unsigned)N->getZExtValue() >> 9, SDLoc(N));
@@ -235,6 +237,45 @@ def : Pat<(brcc SETGE, P2GPR:$lhs, imm9:$rhs, bb:$target), (JMPgte bb:$target, (
 def MOVri32     : Pseudo<(outs P2GPR:$d), (ins i32imm:$s), "mov $d, ##s", [(set P2GPR:$d, imm:$s)]>;
 def MOVri       : P2InstCZIDS<0b0110000, 0b001, always, (outs P2GPR:$d), (ins s9imm:$s), "mov $d, #$s", [(set P2GPR:$d, imm9:$s)]>;
 def MOVrr       : P2InstCZIDS<0b0110000, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$s), "mov $d, $s", [(set P2GPR:$d, P2GPR:$s)]>;
+
+def MOVeqri     : P2InstCZIDS<0b0110000, 0b001, if_z, (outs P2GPR:$d), (ins s9imm:$s), "mov $d, #$s", []>;
+def MOVeqrr     : P2InstCZIDS<0b0110000, 0b000, if_z, (outs P2GPR:$d), (ins P2GPR:$s), "mov $d, $s", []>;
+
+// so we need to define one of these instructions for every condition we want to support, for every iteration of possible operand types
+// which comes out to 8*number of conditions. expansion of this pseudo will actually dictate which compare command to use. ugh
+// don't need a version of this where lhs is an immediate, since that compare instruction doesn't exist
+multiclass sel_cc <CondCode c> {
+    def rrr     : Pseudo<(outs P2GPR:$d), (ins P2GPR:$lhs, P2GPR:$rhs, P2GPR:$t, P2GPR:$f), "selectcc $d, $lhs, $rhs, $t, $f",
+                        [(set P2GPR:$d, (selectcc P2GPR:$lhs, P2GPR:$rhs, P2GPR:$t, P2GPR:$f, c))]>;
+
+    def rri     : Pseudo<(outs P2GPR:$d), (ins P2GPR:$lhs, P2GPR:$rhs, P2GPR:$t, s9imm:$f), "selectcc $d, $lhs, $rhs, $t, #$f",
+                        [(set P2GPR:$d, (selectcc P2GPR:$lhs, P2GPR:$rhs, P2GPR:$t, imm9:$f, c))]>;
+
+    def rir     : Pseudo<(outs P2GPR:$d), (ins P2GPR:$lhs, P2GPR:$rhs, s9imm:$t, P2GPR:$f), "selectcc $d, $lhs, $rhs, #$t, $f",
+                        [(set P2GPR:$d, (selectcc P2GPR:$lhs, P2GPR:$rhs, imm9:$t, P2GPR:$f, c))]>;
+
+    def rii     : Pseudo<(outs P2GPR:$d), (ins P2GPR:$lhs, P2GPR:$rhs, s9imm:$t, s9imm:$f), "selectcc $d, $lhs, $rhs, #$t, #$f",
+                        [(set P2GPR:$d, (selectcc P2GPR:$lhs, P2GPR:$rhs, imm9:$t, imm9:$f, c))]>;
+
+    def irr     : Pseudo<(outs P2GPR:$d), (ins P2GPR:$lhs, P2GPR:$rhs, P2GPR:$t, P2GPR:$f), "selectcc $d, $lhs, $rhs, $t, $f",
+                        [(set P2GPR:$d, (selectcc P2GPR:$lhs, P2GPR:$rhs, P2GPR:$t, P2GPR:$f, c))]>;
+
+    def iri     : Pseudo<(outs P2GPR:$d), (ins P2GPR:$lhs, s9imm:$rhs, P2GPR:$t, s9imm:$f), "selectcc $d, $lhs, $rhs, $t, #$f",
+                        [(set P2GPR:$d, (selectcc P2GPR:$lhs, imm9:$rhs, P2GPR:$t, imm9:$f, c))]>;
+
+    def iir     : Pseudo<(outs P2GPR:$d), (ins P2GPR:$lhs, s9imm:$rhs, s9imm:$t, P2GPR:$f), "selectcc $d, $lhs, $rhs, #$t, $f",
+                        [(set P2GPR:$d, (selectcc P2GPR:$lhs, imm9:$rhs, imm9:$t, P2GPR:$f, c))]>;
+
+    def iii     : Pseudo<(outs P2GPR:$d), (ins P2GPR:$lhs, s9imm:$rhs, s9imm:$t, s9imm:$f), "selectcc $d, $lhs, $rhs, #$t, #$f",
+                        [(set P2GPR:$d, (selectcc P2GPR:$lhs, imm9:$rhs, imm9:$t, imm9:$f, c))]>;
+}
+
+defm SELECTeq   : sel_cc<SETEQ>;
+defm SELECTne   : sel_cc<SETNE>;
+defm SELECTle   : sel_cc<SETLE>;
+defm SELECTlt   : sel_cc<SETLT>;
+defm SELECTgt   : sel_cc<SETGT>;
+defm SELECTge   : sel_cc<SETGE>;
 
 def RDBYTErr    : P2InstCZIDS<0b1010110, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$s), "rdbyte $d, $s", [(set P2GPR:$d, (zextloadi8 P2GPR:$s))]>;
 def RDWORDrr    : P2InstCZIDS<0b1010111, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$s), "rdword $d, $s", [(set P2GPR:$d, (zextloadi16 P2GPR:$s))]>;

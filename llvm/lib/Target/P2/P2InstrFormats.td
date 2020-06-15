@@ -81,7 +81,7 @@ def if_nc_or_z      : P2Cond<"if_nc_or_z", 0b1011>;
 def if_c            : P2Cond<"if_c", 0b1100>;
 def if_c_or_nz      : P2Cond<"if_c_or_nz", 0b1101>;
 def if_c_or_z       : P2Cond<"if_c_or_z", 0b1110>;
-def always          : P2Cond<"", 0b1111>;
+def always          : P2Cond<"\t\t", 0b1111>;
 
 // generic instructions class
 class P2Inst<P2Cond cond, bits<5> type, dag outs, dag ins, string asmstr, list<dag> pattern>: Instruction {
@@ -103,7 +103,7 @@ class P2Inst<P2Cond cond, bits<5> type, dag outs, dag ins, string asmstr, list<d
     let OutOperandList = outs;
     let InOperandList = ins;
 
-    let AsmString = asmstr;
+    let AsmString = !strconcat(cond.condition_str, "\t", asmstr);
     let Pattern = pattern;
 
     // TSFlags layout should be kept in sync with P2InstrInfo.h.

@@ -41,6 +41,7 @@ namespace {
         void expand_QSREM(MachineFunction &MF, MachineBasicBlock::iterator SII);
         void expand_QUREM(MachineFunction &MF, MachineBasicBlock::iterator SII);
         void expand_MOVri32(MachineFunction &MF, MachineBasicBlock::iterator SII);
+        void expand_SELECTCC(MachineFunction &MF, MachineBasicBlock::iterator SII, unsigned cmp_op, unsigned mov_op);
     };
 
     char P2ExpandPseudos::ID = 0;
@@ -81,9 +82,11 @@ void P2ExpandPseudos::expand_QUREM(MachineFunction &MF, MachineBasicBlock::itera
     SI.eraseFromParent();
 }
 
-// eventually we should have an operand in InstrInfo that will automatically convert any immediate to
-// aug the top 23 bits, then mov the lower 9. TBD how to do that. we will still need something like this
-// for global symbols where we don't know the value until linking, so we should always have an AUG instruction
+/*
+ * eventually we should have an operand in InstrInfo that will automatically convert any immediate to
+ * aug the top 23 bits, then mov the lower 9. TBD how to do that. we will still need something like this
+ * for global symbols where we don't know the value until linking, so we should always have an AUG instruction
+ */
 void P2ExpandPseudos::expand_MOVri32(MachineFunction &MF, MachineBasicBlock::iterator SII) {
     MachineInstr &SI = *SII;
 
@@ -112,6 +115,37 @@ void P2ExpandPseudos::expand_MOVri32(MachineFunction &MF, MachineBasicBlock::ite
     SI.eraseFromParent();
 }
 
+/*
+ * expand to
+ * mov d (operand 0), f (operand 4)
+ * cmp lhs (operand 1), rhs (operand 2)
+ * <cond move> d (operand 0), t (operand 3) based on operand 5
+ */
+void P2ExpandPseudos::expand_SELECTCC(MachineFunction &MF, MachineBasicBlock::iterator SII, unsigned cmp_op, unsigned mov_op) {
+    MachineInstr &SI = *SII;
+
+    LLVM_DEBUG(errs()<<"== lower selectcc\n");
+    LLVM_DEBUG(SI.dump());
+
+    const MachineOperand &d = SI.getOperand(0);     // always a register
+    const MachineOperand &lhs = SI.getOperand(1);   // always a register
+    const MachineOperand &rhs = SI.getOperand(2);   // register or immediate
+    const MachineOperand &t = SI.getOperand(3);     // register or immediate
+    const MachineOperand &f = SI.getOperand(4);     // register or immediate
+
+    // mov false into the destination
+    BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(P2::MOVri), d.getReg())
+            .getInstr()->addOperand(f);
+    BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(cmp_op), P2::SW)
+            .addReg(lhs.getReg())
+            .getInstr()->addOperand(rhs);
+    BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(mov_op))
+            .addReg(d.getReg())
+            .getInstr()->addOperand(t);
+
+    SI.eraseFromParent();
+}
+
 bool P2ExpandPseudos::runOnMachineFunction(MachineFunction &MF) {
     TII = TM.getInstrInfo();
 
@@ -128,6 +162,22 @@ bool P2ExpandPseudos::runOnMachineFunction(MachineFunction &MF) {
                     break;
                 case P2::MOVri32:
                     expand_MOVri32(MF, MBBI);
+                    break;
+                case P2::SELECTeqrrr:
+                case P2::SELECTeqrri:
+                    expand_SELECTCC(MF, MBBI, P2::CMPrr, P2::MOVeqrr);
+                    break;
+                case P2::SELECTeqrir:
+                case P2::SELECTeqrii:
+                    expand_SELECTCC(MF, MBBI, P2::CMPrr, P2::MOVeqri);
+                    break;
+                case P2::SELECTeqirr:
+                case P2::SELECTeqiri:
+                    expand_SELECTCC(MF, MBBI, P2::CMPri, P2::MOVeqrr);
+                    break;
+                case P2::SELECTeqiir:
+                case P2::SELECTeqiii:
+                    expand_SELECTCC(MF, MBBI, P2::CMPri, P2::MOVeqri);
                     break;
                 default:
                     break;

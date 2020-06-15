@@ -9,8 +9,8 @@
 
 #include "propeller2.h"
 
-unsigned int blink1_stack[32];
-unsigned int blink2_stack[32];
+volatile unsigned int blink1_stack[32];
+//unsigned int blink2_stack[32];
 
 struct led_mb_t {
     char pin;
@@ -49,14 +49,14 @@ int main() {
     //waitx(12500000);
 
     led_mb_t led1;
-    led_mb_t led2;
+    //led_mb_t led2;
 
     led1.pin = 56;
     led1.delay = 25000000;
-    led2 = modify_led_mb(led1);
+    //led2 = modify_led_mb(led1);
 
     cognew(blink, (int)&led1, (int*)blink1_stack);
-    cognew(blink, (int)&led2, (int*)blink2_stack);
+    //cognew(blink, (int)&led2, (int*)blink2_stack);
 
     while(1);
 

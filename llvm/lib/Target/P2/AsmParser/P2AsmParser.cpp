@@ -31,6 +31,8 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/TargetRegistry.h"
 
+#include <set>
+
 using namespace llvm;
 
 #define DEBUG_TYPE "p2-asm-parser"
@@ -61,6 +63,24 @@ namespace {
         MCAsmParser &Parser;
         P2AssemblerOptions Options;
 
+        std::set<StringRef> cond_strings {
+            "_ret_",
+            "if_nc_and_nz",
+            "if_nc_and_z",
+            "if_nc",
+            "if_c_and_nz",
+            "if_nz",
+            "if_c_ne_z",
+            "if_nc_or_nz",
+            "if_c_and_z",
+            "if_c_eq_z",
+            "if_z",
+            "if_nc_or_z",
+            "if_c",
+            "if_c_or_nz",
+            "if_c_or_z",
+            ""
+        };
 
     #define GET_ASSEMBLER_HEADER
     #include "P2GenAsmMatcher.inc"
@@ -261,7 +281,7 @@ void printP2Operands(OperandVector &Operands) {
     for (size_t i = 0; i < Operands.size(); i++) {
         P2Operand* op = static_cast<P2Operand*>(&*Operands[i]);
         assert(op != nullptr);
-        LLVM_DEBUG(dbgs() << "<" << *op << ">");
+        LLVM_DEBUG(dbgs() << " " << *op);
     }
     LLVM_DEBUG(dbgs() << "\n");
 }
@@ -272,6 +292,7 @@ implement virtual functions
 bool P2AsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode, OperandVector &Operands,
                                             MCStreamer &Out, uint64_t &ErrorInfo, bool MatchingInlineAsm) {
 
+    LLVM_DEBUG(errs() << "match and emit instruction\n");
     printP2Operands(Operands);
     MCInst Inst;
     unsigned MatchResult = MatchInstructionImpl(Operands, Inst, ErrorInfo, MatchingInlineAsm);
@@ -282,6 +303,7 @@ bool P2AsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode, Operand
         case Match_Success: {
             Inst.setLoc(IDLoc);
             Inst.setFlags(Inst.getFlags() | P2::ALWAYS); // don't try to parse conditional instructions yet
+            Inst.dump();
             Out.emitInstruction(Inst, getSTI());
             return false;
         }
@@ -328,9 +350,22 @@ bool P2AsmParser::ParseRegister(unsigned &reg_no, SMLoc &start, SMLoc &end) {
 
 bool P2AsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name, SMLoc NameLoc, OperandVector &Operands) {
 
-    size_t Start = 0, Next = Name.find('.');
-    StringRef Mnemonic = Name.slice(Start, Next);
-    Operands.push_back(P2Operand::CreateToken(Mnemonic, NameLoc));
+    LLVM_DEBUG(errs() << "=== Parse Instruction ===\n");
+    size_t start = 0, next = Name.find('\t');
+    StringRef inst = Name.slice(start, next);
+    StringRef condition;
+    if (cond_strings.find(inst) != cond_strings.end()) {
+        // we have a condition, save it, and we'll put it as the last operand
+        // also read the next operand which is the actual instruction
+        start = next;
+        next = Name.find(' ');
+        condition = inst;
+        inst = Name.slice(start, next);
+    }
+
+    LLVM_DEBUG(errs() << "inst: " << inst << "\n");
+
+    Operands.push_back(P2Operand::CreateToken(inst, NameLoc));
 
     // Read the operands.
     if (getLexer().isNot(AsmToken::EndOfStatement)) {
@@ -361,6 +396,8 @@ bool P2AsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name, S
     }
 
     Parser.Lex(); // Consume the EndOfStatement
+
+    LLVM_DEBUG(errs() << "=== End Parse Instruction ===\n");
     return false;
 }
 
