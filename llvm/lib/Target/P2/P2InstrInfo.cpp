@@ -68,8 +68,14 @@ void P2InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                MachineBasicBlock::iterator MI,
                                const DebugLoc &DL, MCRegister DestReg,
                                MCRegister SrcReg, bool KillSrc) const {
-    BuildMI(MBB, MI, DL, get(P2::MOVrr), DestReg)
-        .addReg(SrcReg, getKillRegState(KillSrc));
+
+    if (SrcReg == P2::QX) {
+        BuildMI(MBB, MI, DL, get(P2::GETQX), DestReg);
+    } else if (SrcReg == P2::QY) {
+        BuildMI(MBB, MI, DL, get(P2::GETQY), DestReg);
+    } else {
+        BuildMI(MBB, MI, DL, get(P2::MOVrr), DestReg).addReg(SrcReg, getKillRegState(KillSrc));
+    }
 }
 
 void P2InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,

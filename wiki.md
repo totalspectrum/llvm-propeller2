@@ -53,7 +53,7 @@ I am developing this project with two main goals in mind:
 
 ## Getting Started
 See README.md, with the following notes:
-- when running `cmake`, run `cmake -G "Unix Makefiles" -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=P2 ../llvm`
+- when running `cmake`, run `cmake -G "Unix Makefiles" -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_INSTALL_PREFIX=<install dir> -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=P2 ../llvm`
 - building for the first time will take quite a bit of time, ~20 min.
 - to run one of the examples in p2_dev_tests, run in two steps (from p2_dev_tests/)
     - `../build/bin/clang -target mips-unknown-linux-gnu -S -c <file>.cpp -emit-llvm -o <file>.ll` (Eventually need to create a P2 target in clang). This compiles C down to LLVM IR language.
@@ -92,11 +92,11 @@ When calling a function, the caller will increment sp to allocate space for the 
 
 This section describes how a program should be organized in hub memory. Below is a simple diagram.
 
-| 0x00000                | 0x00200     | 0x00400                        | 0x7fffff (or 0x7cffff?)          |
+| 0x00100                | 0x00200     | 0x00400                        | 0x7fffff (or 0x7cffff?)          |
 |------------------------|-------------|--------------------------------|----------------------------------|
 | Re-usable startup code | Cog 0 stack | Start of generic program space | End of memory (on Rev B silicon) |
 
-Hub memory 0x00000-0x003ff will be used as stack space for the cog 0 cog, as well as contain the startup code needed (like setting up the UART interface, etc). we start at 0x400 since that's the first address than can be used for hub executiong. Starting a new cog requires setting PTRA (using SETQ) to the start of the stack space to use for that cog. The first stack slot should store the pointer to the function to run, the second stack slot should store an optional parameter that will be the first argument into the function. A new cog should always start by copying the startup code at 0x00000 and executing it
+Hub memory 0x00000-0x003ff will be used as stack space for the cog 0 cog, as well as contain the startup code needed (like setting up the UART interface, etc). We put 0x00100 as the startup code because special registers live at 0x00000 (I can't find documentation on what these are, but 0x14 has clock frequency, 0x18 has clock mode, etc). We start at 0x400 since that's the first address than can be used for hub executiong. Starting a new cog requires setting PTRA (using SETQ) to the start of the stack space to use for that cog. The first stack slot should store the pointer to the function to run, the second stack slot should store an optional parameter that will be the first argument into the function. A new cog should always start by copying the startup code at 0x00000 and executing it
 
 The end of the memory space (not yet described in detail) will be bss/rodata for static data and heap space for dynamic allocation, but dynamic allocation should be kept to a minimum (as with most embedded systems).
 

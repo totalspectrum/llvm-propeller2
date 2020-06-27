@@ -81,7 +81,7 @@ def if_nc_or_z      : P2Cond<"if_nc_or_z", 0b1011>;
 def if_c            : P2Cond<"if_c", 0b1100>;
 def if_c_or_nz      : P2Cond<"if_c_or_nz", 0b1101>;
 def if_c_or_z       : P2Cond<"if_c_or_z", 0b1110>;
-def always          : P2Cond<"\t\t", 0b1111>;
+def always          : P2Cond<"", 0b1111>;
 
 // generic instructions class
 class P2Inst<P2Cond cond, bits<5> type, dag outs, dag ins, string asmstr, list<dag> pattern>: Instruction {
@@ -359,6 +359,14 @@ class P2InstN<bits<5> op, P2Cond cond, dag outs, dag ins, string asmstr, list<da
 
     let Inst{27-23} = op;
     let Inst{22-0} = n;
+}
+
+// 7 bit opcode, CZI flags, and two 9-bit operands (D/S). S can be immediate
+class P2InstNOP : P2Inst<_ret_, 0, (outs), (ins), "nop ", []> {
+    let Inst{27-21} = 0b0000000;
+    let Inst{20-18} = 0b000;
+    let Inst{17-9} = 0b000000000;
+    let Inst{8-0} = 0b000000000;
 }
 
 // branch instruction that should execute based on the effects

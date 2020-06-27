@@ -62,6 +62,10 @@ MCOperand P2MCInstLower::LowerSymbolOperand(const MachineOperand &MO,
             Symbol = AsmPrinter.GetJTISymbol(MO.getIndex());
         break;
 
+        case MachineOperand::MO_ExternalSymbol:
+            Symbol = AsmPrinter.GetExternalSymbolSymbol(MO.getSymbolName());
+        break;
+
         default:
             llvm_unreachable("<unknown operand type>");
     }
@@ -86,11 +90,13 @@ MCOperand P2MCInstLower::lowerOperand(const MachineOperand& MO, unsigned offset)
     switch (MOTy) {
 
         default:
+            LLVM_DEBUG(errs() << "Operand type: " << (int)MOTy << "\n");
             llvm_unreachable("MCInstrLower: unknown operand type");
         case MachineOperand::MO_GlobalAddress:
         case MachineOperand::MO_JumpTableIndex:
         case MachineOperand::MO_BlockAddress:
         case MachineOperand::MO_MachineBasicBlock:
+        case MachineOperand::MO_ExternalSymbol:
             return LowerSymbolOperand(MO, MOTy, offset);
 
         case MachineOperand::MO_Register:

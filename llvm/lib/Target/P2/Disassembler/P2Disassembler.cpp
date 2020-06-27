@@ -52,7 +52,6 @@ extern "C" void LLVMInitializeP2Disassembler() {
 }
 
 static const uint16_t GPRDecoderTable[] = {
-    P2::SP,
 	P2::R0, P2::R1, P2::R2, P2::R3,
 	P2::R4, P2::R5, P2::R6, P2::R7,
 	P2::R8, P2::R9, P2::R10, P2::R11,
@@ -62,12 +61,12 @@ static const uint16_t GPRDecoderTable[] = {
 };
 
 static uint16_t getRegForField(uint16_t r) {
-    if (r < 0x1df || r > 0x1ff) {
+    if (r < 0x1e0 || r > 0x1ff) {
         LLVM_DEBUG(errs() << "register address: " << r << "\n");
         llvm_unreachable("bad register address!");
     }
 
-    return GPRDecoderTable[r-0x1df];
+    return GPRDecoderTable[r-0x1e0];
 }
 
 static DecodeStatus DecodeP2GPRRegisterClass(MCInst &Inst, unsigned RegNo, uint64_t Address, const void *Decoder);
@@ -143,7 +142,7 @@ static DecodeStatus DecodeCmpInstruction(MCInst &Inst, unsigned Insn, uint64_t A
 }
 
 static DecodeStatus DecodeCordicInstruction(MCInst &Inst, unsigned Insn, uint64_t Address, const void *Decoder) {
-    LLVM_DEBUG(errs() << "cordic decode...\n");
+    LLVM_DEBUG(errs() << "Cordic decode\n");
 
     unsigned d_field = fieldFromInstruction(Insn, 9, 9);
     unsigned s_field = fieldFromInstruction(Insn, 0, 9);
@@ -164,10 +163,6 @@ static DecodeStatus DecodeCordicInstruction(MCInst &Inst, unsigned Insn, uint64_
     } else {
         Inst.addOperand(MCOperand::createReg(getRegForField(s_field)));
     }
-
-    // add the implicit operands in case they are needed somewhere
-    Inst.addOperand(MCOperand::createReg(P2::QX));
-    Inst.addOperand(MCOperand::createReg(P2::QY));
 
     return MCDisassembler::Success;
 }

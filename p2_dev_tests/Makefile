@@ -3,31 +3,32 @@ CC = $(LLVM)/bin/clang
 LD = $(LLVM)/bin/ld.lld
 LOAD = loadp2
 
-TARGET = test7
+TARGET = test9
 OBJDIR = build
 
-CFLAGS = -ffunction-sections --target=p2 -Os
+CFLAGS = -Os -ffunction-sections --target=p2 -I./p2lib
 LFLAGS = -Tp2.ld
-LOADFLAGS = -v -ZERO
+LOADFLAGS = -v -ZERO -t -b 230400
 
 .PHONY: all setup clean load
 
 all: clean setup $(OBJDIR)/$(TARGET).elf load
 
 setup:
+	$(shell pkill loadp2)
 	mkdir -p $(OBJDIR)
 
 $(OBJDIR)/$(TARGET).elf: $(OBJDIR)/$(TARGET).o $(OBJDIR)/propeller2.o $(OBJDIR)/crt0.o
 		$(LD) $(LFLAGS) -o $@ $^
 
-$(OBJDIR)/$(TARGET).o: $(TARGET).cpp propeller2.h
-		$(CC) $(CFLAGS) -o $@ -c $< #-mllvm -debug #--debug-only=p2-isel,isel,p2-expand-pseudos,mccodeemitter
+$(OBJDIR)/$(TARGET).o: $(TARGET).cpp p2lib/propeller2.h
+		$(CC) $(CFLAGS) -o $@ -c $< #-mllvm -debug #--debug-only=isel,p2-isel
 
-$(OBJDIR)/propeller2.o: propeller2.c propeller2.h
+$(OBJDIR)/propeller2.o: p2lib/propeller2.c p2lib/propeller2.h
+		$(CC) $(CFLAGS) -o $@ -c $< #-mllvm --debug-only=p2-disassembler
+
+$(OBJDIR)/crt0.o: p2lib/crt0.c
 		$(CC) $(CFLAGS) -o $@ -c $<
-
-$(OBJDIR)/crt0.o: crt0.c
-		$(CC) $(CFLAGS) -o $@ -c $< -mllvm --debug-only=p2-asm-parser
 
 load:
 	$(LOAD) $(LOADFLAGS) $(OBJDIR)/$(TARGET).elf

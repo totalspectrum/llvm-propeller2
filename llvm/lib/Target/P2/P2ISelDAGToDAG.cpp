@@ -41,6 +41,47 @@ bool P2DAGToDAGISel::runOnMachineFunction(MachineFunction &MF) {
     return SelectionDAGISel::runOnMachineFunction(MF);
 }
 
+void P2DAGToDAGISel::selectMultiplication(SDNode *N) {
+    SDLoc DL(N);
+    MVT vt = N->getSimpleValueType(0);
+
+    assert(vt == MVT::i32 && "unexpected value type");
+    bool isSigned = N->getOpcode() == ISD::SMUL_LOHI;
+    unsigned op = isSigned ? P2::QMULrr : P2::QMULrr; // FIXME: replace with signed multiplication node
+
+    SDValue lhs = N->getOperand(0);
+    SDValue rhs = N->getOperand(1);
+    SDNode *mul = CurDAG->getMachineNode(op, DL, MVT::Glue, lhs, rhs);
+    SDValue in_chain = CurDAG->getEntryNode();
+    SDValue in_glue = SDValue(mul, 0);
+
+    //LLVM_DEBUG(mul->dump());
+
+    // Copy the low half of the result, if it is needed.
+    if (N->hasAnyUseOfValue(0)) {
+        SDValue res = CurDAG->getCopyFromReg(in_chain, DL, P2::QX, vt, in_glue);
+        ReplaceUses(SDValue(N, 0), res);
+
+        in_chain = res.getValue(1);
+        in_glue = res.getValue(2);
+
+        //LLVM_DEBUG(res.dump());
+    }
+
+    // Copy the high half of the result, if it is needed.
+    if (N->hasAnyUseOfValue(1)) {
+        SDValue res = CurDAG->getCopyFromReg(in_chain, DL, P2::QY, vt, in_glue);
+        ReplaceUses(SDValue(N, 1), res);
+
+        in_chain = res.getValue(1);
+        in_glue = res.getValue(2);
+
+        //LLVM_DEBUG(res.dump());
+    }
+
+    CurDAG->RemoveDeadNode(N);
+}
+
 void P2DAGToDAGISel::Select(SDNode *N) {
     //unsigned Opcode = N->getOpcode();
 
@@ -55,14 +96,45 @@ void P2DAGToDAGISel::Select(SDNode *N) {
         return;
     }
 
-    if (N->getOpcode() == ISD::FrameIndex) {
-        LLVM_DEBUG(errs() << "frame index node is being selected\n");
-        FrameIndexSDNode *FIN = dyn_cast<FrameIndexSDNode>(N);
-        auto DL = CurDAG->getDataLayout();
-        SDValue TFI = CurDAG->getTargetFrameIndex(FIN->getIndex(), getTargetLowering()->getPointerTy(DL));
+    /*
+     * Instruction Selection not handled by the auto-generated
+     * tablegen selection should be handled here.
+     */
+    //EVT NodeTy = Node->getValueType(0);
+    unsigned Opcode = N->getOpcode();
+    auto DL = CurDAG->getDataLayout();
 
-        CurDAG->SelectNodeTo(N, P2::FRMIDX, getTargetLowering()->getPointerTy(DL), TFI);
-        return;
+    switch(Opcode) {
+        default: break;
+
+        case ISD::FrameIndex: {
+            LLVM_DEBUG(errs() << "frame index node is being selected\n");
+            FrameIndexSDNode *FIN = dyn_cast<FrameIndexSDNode>(N);
+            SDValue TFI = CurDAG->getTargetFrameIndex(FIN->getIndex(), getTargetLowering()->getPointerTy(DL));
+
+            CurDAG->SelectNodeTo(N, P2::FRMIDX, getTargetLowering()->getPointerTy(DL), TFI);
+            return;
+        }
+
+        // case ISD::SUBE: {
+        //     SDValue InFlag = Node->getOperand(2);
+        //     selectAddESubE(Cpu0::SUBu, InFlag, InFlag.getOperand(0), DL, Node);
+        //     return true;
+        // }
+
+        // case ISD::ADDE: {
+        //     SDValue InFlag = Node->getOperand(2);
+        //     selectAddESubE(Cpu0::ADDu, InFlag, InFlag.getValue(0), DL, Node);
+        //     return true;
+        // }
+
+        /// Mul with two results
+        case ISD::SMUL_LOHI:
+            llvm_unreachable("DAGToDAG: no signed multiplication implementation yet");
+        case ISD::UMUL_LOHI: {
+            selectMultiplication(N);
+            return;
+        }
     }
 
     // Select the default instruction

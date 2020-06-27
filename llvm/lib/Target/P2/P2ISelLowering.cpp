@@ -80,7 +80,12 @@ P2TargetLowering::P2TargetLowering(const P2TargetMachine &TM) : TargetLowering(T
     //  added, this allows us to compute derived properties we expose.
     computeRegisterProperties(TM.getRegisterInfo());
 
+    // See https://llvm.org/doxygen/TargetLowering_8h_source.html#l00192 for the various action
     setOperationAction(ISD::GlobalAddress, MVT::i32, Custom);
+
+    // setOperationAction(ISD::SHL_PARTS, MVT::i32, Expand);
+    // setOperationAction(ISD::SRA_PARTS, MVT::i32, Expand);
+    // setOperationAction(ISD::SRL_PARTS, MVT::i32, Expand);
 }
 
 SDValue P2TargetLowering::lowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const {
@@ -121,12 +126,16 @@ SDValue P2TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     SDValue Callee                        = CLI.Callee;
     CallingConv::ID CallConv              = CLI.CallConv;
     bool IsVarArg                         = CLI.IsVarArg;
+    bool &isTailCall                      = CLI.IsTailCall;
 
     MachineFunction &MF = DAG.getMachineFunction();
     MachineFrameInfo *MFI = &MF.getFrameInfo();
     const TargetFrameLowering *TFL = MF.getSubtarget().getFrameLowering();
     P2FunctionInfo *FuncInfo = MF.getInfo<P2FunctionInfo>();
     P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
+
+    // P2 does not yet support tail call optimization.
+    isTailCall = false;
 
     // Analyze operands of the call, assigning locations to each operand.
     SmallVector<CCValAssign, 16> ArgLocs;
@@ -146,7 +155,7 @@ SDValue P2TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     Chain = DAG.getCALLSEQ_START(Chain, NextStackOffset, 0, DL);
 
     // get the current stack pointer value
-    SDValue StackPtr = DAG.getCopyFromReg(Chain, DL, P2::SP, getPointerTy(DAG.getDataLayout()));
+    SDValue StackPtr = DAG.getCopyFromReg(Chain, DL, P2::PTRA, getPointerTy(DAG.getDataLayout()));
 
     // we have 4 args on registers
     std::deque<std::pair<unsigned, SDValue>> RegsToPass;
@@ -206,6 +215,8 @@ SDValue P2TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     SDValue CalleeLo;
     EVT Ty = Callee.getValueType();
 
+    LLVM_DEBUG(errs() << "callee: "; Callee.dump());
+
     if (GlobalAddressSDNode *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
         Callee = DAG.getTargetGlobalAddress(G->getGlobal(), DL, getPointerTy(DAG.getDataLayout()), 0);
         GlobalOrExternal = true;
@@ -219,6 +230,8 @@ SDValue P2TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 
     SmallVector<SDValue, 8> Ops(1, Chain);
     SDVTList NodeTys = DAG.getVTList(MVT::Other, MVT::Glue);
+
+    LLVM_DEBUG(errs() << "callee: "; Callee.dump());
 
     // buit the list of CopyToReg operations.
     getOpndList(Ops, RegsToPass, false, GlobalOrExternal, InternalLinkage, CLI, Callee, Chain);
@@ -248,6 +261,7 @@ SDValue P2TargetLowering::LowerCallResult(SDValue Chain, SDValue InFlag,
     // Assign locations to each value returned by this call.
     SmallVector<CCValAssign, 16> RVLocs;
     CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), RVLocs, *DAG.getContext());
+    LLVM_DEBUG(errs() << "=== Lower Call Result\n");
     CCInfo.AnalyzeCallResult(Ins, RetCC_P2);
 
     SmallVector<std::pair<int, unsigned>, 4> ResultMemLocs;
@@ -396,20 +410,53 @@ SDValue P2TargetLowering::LowerReturn(SDValue Chain,
     // the return value to a location
     SmallVector<CCValAssign, 16> RVLocs;
     MachineFunction &MF = DAG.getMachineFunction();
+    MachineFrameInfo MFI = MF.getFrameInfo();
 
     // CCState - Info about the registers and stack slot.
     CCState CCInfo(CallConv, IsVarArg, MF, RVLocs, *DAG.getContext());
 
     // Analyze return values.
+    LLVM_DEBUG(errs() << "=== Lower Return: "; MF.dump());
     CCInfo.AnalyzeReturn(Outs, RetCC_P2);
 
     SDValue Flag;
     SmallVector<SDValue, 4> RetOps(1, Chain);
+    SmallVector<SDValue, 4> MemOpChains;
 
-    // Copy the result values into the output registers.
+    // Handle return values that must be copied to memory.
+    for (unsigned i = 0; i != RVLocs.size(); ++i) {
+        CCValAssign &VA = RVLocs[i];
+        if (VA.isRegLoc())
+            continue;
+
+        assert(VA.isMemLoc());
+        if (IsVarArg) {
+            report_fatal_error("Can't return value from vararg function in memory");
+        }
+
+        int Offset = VA.getLocMemOffset();
+        unsigned ObjSize = VA.getLocVT().getStoreSize();
+        // Create the frame index object for the memory location.
+        int FI = MFI.CreateFixedObject(ObjSize, Offset, false);
+
+        // Create a SelectionDAG node corresponding to a store to this memory location.
+        SDValue FIN = DAG.getFrameIndex(FI, MVT::i32);
+        MemOpChains.push_back(DAG.getStore(Chain, DL, OutVals[i], FIN, MachinePointerInfo::getFixedStack(MF, FI)));
+    }
+
+    // Transform all store nodes into one single node because
+    // all stores are independent of each other.
+    if (!MemOpChains.empty())
+        Chain = DAG.getNode(ISD::TokenFactor, DL, MVT::Other, MemOpChains);
+
+    // Copy the result values into the output register.
     for (unsigned i = 0; i != RVLocs.size(); ++i) {
         SDValue Val = OutVals[i];
         CCValAssign &VA = RVLocs[i];
+        if (!VA.isRegLoc())
+            continue;
+
+        // sanity check
         assert(VA.isRegLoc() && "Can only return in registers!");
 
         if (RVLocs[i].getValVT() != RVLocs[i].getLocVT())
@@ -454,6 +501,20 @@ void P2TargetLowering::getOpndList(SmallVectorImpl<SDValue> &Ops,
     // known live into the call.
     for (unsigned i = 0, e = RegsToPass.size(); i != e; ++i)
         Ops.push_back(CLI.DAG.getRegister(RegsToPass[i].first, RegsToPass[i].second.getValueType()));
+
+    // Add a register mask operand representing the call-preserved registers.
+    const TargetRegisterInfo *TRI = target_machine.getRegisterInfo();
+    const uint32_t *Mask = TRI->getCallPreservedMask(CLI.DAG.getMachineFunction(), CLI.CallConv);
+    assert(Mask && "Missing call preserved mask for calling convention");
+    // if (GlobalAddressSDNode *G = dyn_cast<GlobalAddressSDNode>(CLI.Callee)) {
+    //     StringRef Sym = G->getGlobal()->getName();
+    //     Function *F = G->getGlobal()->getParent()->getFunction(Sym);
+    //     if (F && F->hasFnAttribute("__Mips16RetHelper")) {
+    //         Mask = MipsRegisterInfo::getMips16RetHelperMask();
+    //     }
+    // }
+
+    Ops.push_back(CLI.DAG.getRegisterMask(Mask));
 
     if (InFlag.getNode())
         Ops.push_back(InFlag);

@@ -43,6 +43,9 @@ class P2FunctionInfo : public MachineFunctionInfo {
     /// Size of incoming argument area.
     unsigned IncomingArgSize;
 
+    /// Size of the callee-saved register portion of the stack frame in bytes.
+    unsigned CalleeSavedFrameSize;
+
     mutable int DynAllocFI; // Frame index of dynamically allocated stack area.
     bool EmitNOAT;
     unsigned MaxCallFrameSize;
@@ -73,6 +76,9 @@ public:
 
     unsigned getMaxCallFrameSize() const { return MaxCallFrameSize; }
     void setMaxCallFrameSize(unsigned S) { MaxCallFrameSize = S; }
+
+    unsigned getCalleeSavedFrameSize() const { return CalleeSavedFrameSize; }
+    void setCalleeSavedFrameSize(unsigned Bytes) { CalleeSavedFrameSize = Bytes; }
 
     bool getEmitNOAT() const { return EmitNOAT; }
     void setEmitNOAT() { EmitNOAT = true; }

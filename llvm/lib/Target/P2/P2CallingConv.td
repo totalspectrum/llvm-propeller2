@@ -16,7 +16,9 @@ def CC_P2 : CallingConv<[
     CCIfType<[i32], CCAssignToReg<[R0, R1, R2, R3]>>,
     // Fall-back, and use the stack, stack is 4 bytes wide and byte aligned.
     CCIfType<[i32], CCAssignToStack<4, 1>>,
-    // use this for byvals
+    // 64 bit arguments are passed on the stack
+    CCIfType<[i64], CCAssignToStack<8, 1>>,
+    // byvals are passed via the stack
     CCIfByVal<CCPassByVal<4, 1>>
 ]>;
 
@@ -27,8 +29,20 @@ def CC_P2_Vararg : CallingConv <[
 ]>;
 
 def RetCC_P2 : CallingConv <[
-    // i32 are returned in R15
-    CCIfType<[i32], CCAssignToReg<[R15]>>,
+    CCIfType<[i1, i8, i16], CCPromoteToType<i32>>,
+    // i32 are returned in R15 and R14 (two registers to 64 bit numbers if needed)
+    CCIfType<[i32], CCAssignToReg<[R15, R14]>>,
 
-    CCIfByVal<CCAssignToStack<4, 1>>
+    CCIfByVal<CCAssignToStack<4, 1>>,
+
+    // everything else is returns on the stack
+    // CCAssignToStack<4, 4>
+/*
+    // i64s are returned on the stack
+    CCIfType<[i64], CCAssignToStack<4, 1>>,
+
+
+    */
 ]>;
+
+def CSR : CalleeSavedRegs<(add (sequence "R%u", 0, 3))> {}

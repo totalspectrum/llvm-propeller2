@@ -61,10 +61,10 @@ bool P2FrameLowering::hasFP(const MachineFunction &MF) const {
     const MachineFrameInfo *MFI = &MF.getFrameInfo();
     const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
 
-    LLVM_DEBUG(errs() << "hasFP = disable FP elim: " << MF.getTarget().Options.DisableFramePointerElim(MF) <<
-                "; var sized objects: " << MFI->hasVarSizedObjects() <<
-                "; frame address is taken: " << MFI->isFrameAddressTaken() <<
-                "; needs stack realignment: " << TRI->needsStackRealignment(MF) << "\n");
+    // LLVM_DEBUG(errs() << "hasFP = disable FP elim: " << MF.getTarget().Options.DisableFramePointerElim(MF) <<
+    //             "; var sized objects: " << MFI->hasVarSizedObjects() <<
+    //             "; frame address is taken: " << MFI->isFrameAddressTaken() <<
+    //             "; needs stack realignment: " << TRI->needsStackRealignment(MF) << "\n");
 
     // I don't think we'll ever need a frame pointer
 
@@ -78,55 +78,33 @@ void P2FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) 
 
     MachineModuleInfo &MMI = MF.getMMI();
     const P2InstrInfo *TII = MF.getSubtarget<P2Subtarget>().getInstrInfo();
-     MachineBasicBlock::iterator MBBI = MBB.begin();
+    MachineBasicBlock::iterator MBBI = MBB.begin();
 
     // Debug location must be unknown since the first debug location is used
     // to determine the end of the prologue.
     DebugLoc dl;
     const MachineFrameInfo &MFI = MF.getFrameInfo();
     const std::vector<CalleeSavedInfo> &CSI = MFI.getCalleeSavedInfo();
+    P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
 
     if (MF.getFunction().isVarArg()) {
         // Add in the varargs area here first.
         llvm_unreachable("can't yet emit prologues for vararg functions");
     }
 
-    // if (!hasFP(MF)) {
-    //     // no frame pointer, we can return early, right?
-    //     return;
-    // }
+    LLVM_DEBUG(errs() << "\n");
 
+    // reserve the existing stack size + the callee saved frame size
     uint64_t StackSize = MFI.getStackSize();
+    LLVM_DEBUG(errs() << "Allocating " << StackSize << " bytes for stack\n");
 
     // No need to allocate space on the stack.
     if (StackSize == 0 && !MFI.adjustsStack()) {
-        LLVM_DEBUG(errs() << "No need to allocate stack space");
+        LLVM_DEBUG(errs() << "No need to allocate stack space\n");
         return;
     }
 
-    TII->adjustStackPtr(P2::SP, StackSize, MBB, MBBI);
-
-    if (CSI.size()) {
-        LLVM_DEBUG(errs() << "have callee saved info\n");
-        llvm_unreachable("can't yet handle callee saved info");
-        // // Find the instruction past the last instruction that saves a callee-saved
-        // // register to the stack.
-        // for (unsigned i = 0; i < CSI.size(); ++i)
-        //     ++MBBI;
-
-        // // Iterate over list of callee-saved registers and emit .cfi_offset
-        // // directives.
-        // for (std::vector<CalleeSavedInfo>::const_iterator I = CSI.begin(), E = CSI.end(); I != E; ++I) {
-        //     int64_t Offset = MFI->getObjectOffset(I->getFrameIdx());
-        //     unsigned Reg = I->getReg();
-        //     {
-        //         // Reg is in CPURegs.
-        //         unsigned CFIIndex = MMI.addFrameInst(MCCFIInstruction::createOffset(
-        //             nullptr, MRI->getDwarfRegNum(Reg, 1), Offset));
-        //         BuildMI(MBB, MBBI, dl, TII.get(TargetOpcode::CFI_INSTRUCTION)).addCFIIndex(CFIIndex);
-        //     }
-        // }
-    }
+    TII->adjustStackPtr(P2::PTRA, StackSize, MBB, MBBI);
 }
 
 void P2FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const {
@@ -154,12 +132,69 @@ void P2FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) 
     uint64_t StackSize = MFI->getStackSize();
 
     if (StackSize == 0) {
-        LLVM_DEBUG(errs() << "No need to de-allocate stack space");
+        LLVM_DEBUG(errs() << "No need to de-allocate stack space\n");
         return;
     }
 
     // Adjust stack.
-    TII->adjustStackPtr(P2::SP, -StackSize, MBB, MBBI);
+    TII->adjustStackPtr(P2::PTRA, -StackSize, MBB, MBBI);
+}
+
+void P2FrameLowering::determineCalleeSaves(MachineFunction &MF, BitVector &SavedRegs, RegScavenger *RS) const {
+    TargetFrameLowering::determineCalleeSaves(MF, SavedRegs, RS);
+}
+
+bool P2FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
+                                                ArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const {
+
+    LLVM_DEBUG(errs() << "Spilling callee saves\n");
+    LLVM_DEBUG(errs() << "*** THIS CODE HAS NOT BEEN TESTED ***\n");
+
+    unsigned CalleeFrameSize = 0;
+    DebugLoc DL = MBB.findDebugLoc(MI);
+    MachineFunction &MF = *MBB.getParent();
+    const P2Subtarget &STI = MF.getSubtarget<P2Subtarget>();
+    const TargetInstrInfo &TII = *STI.getInstrInfo();
+    P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
+
+    for (unsigned i = CSI.size(); i != 0; --i) {
+        unsigned Reg = CSI[i-1].getReg();
+        bool IsNotLiveIn = !MBB.isLiveIn(Reg);
+
+        // Add the callee-saved register as live-in only if it is not already a
+        // live-in register, this usually happens with arguments that are passed
+        // through callee-saved registers.
+        if (IsNotLiveIn) {
+            MBB.addLiveIn(Reg);
+        }
+
+        const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
+        TII.storeRegToStackSlot(MBB, MI, Reg, false, CSI[i-1].getFrameIdx(), RC, TRI);
+
+        LLVM_DEBUG(errs() << "--- spilling " << Reg << " to " << CSI[i-1].getFrameIdx() << "\n");
+    }
+
+    return true;
+}
+
+bool P2FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
+                                                MutableArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const {
+
+    LLVM_DEBUG(errs() << "Restore CSRs\n");
+
+    MachineFunction &MF = *MBB.getParent();
+    const P2Subtarget &STI = MF.getSubtarget<P2Subtarget>();
+    const TargetInstrInfo &TII = *STI.getInstrInfo();
+
+    for (unsigned i = CSI.size(); i != 0; --i) {
+        unsigned Reg = CSI[i-1].getReg();
+        const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
+        TII.loadRegFromStackSlot(MBB, MI, Reg, CSI[i-1].getFrameIdx(), RC, TRI);
+    }
+
+    LLVM_DEBUG(errs() << "\n");
+
+    return true;
 }
 
 MachineBasicBlock::iterator P2FrameLowering::eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
@@ -174,7 +209,7 @@ MachineBasicBlock::iterator P2FrameLowering::eliminateCallFramePseudoInstr(Machi
             Amount = -Amount;
 
         if (Amount)
-            tm.getInstrInfo()->adjustStackPtr(P2::SP, Amount, MBB, I);
+            tm.getInstrInfo()->adjustStackPtr(P2::PTRA, Amount, MBB, I);
     }
 
 

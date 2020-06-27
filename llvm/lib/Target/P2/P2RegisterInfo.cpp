@@ -32,25 +32,27 @@ using namespace llvm;
 #define GET_REGINFO_TARGET_DESC
 #include "P2GenRegisterInfo.inc"
 
-// FIXME: Provide proper call frame setup / destroy opcodes.
 P2RegisterInfo::P2RegisterInfo() : P2GenRegisterInfo(0) {}
 
 const MCPhysReg* P2RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
-    // TODO
-    static const MCPhysReg CalleeSavedRegs[1] = {};
+    return CSR_SaveList;
+}
 
-    return CalleeSavedRegs;
+const uint32_t *P2RegisterInfo::getCallPreservedMask(const MachineFunction &MF,CallingConv::ID CC) const {
+    LLVM_DEBUG(errs() << CSR_RegMask[0] << "\n");
+    return CSR_RegMask;
 }
 
 BitVector P2RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
     BitVector Reserved(getNumRegs());
-    Reserved.set(P2::SP);
     Reserved.set(P2::PTRA);
     Reserved.set(P2::PTRB);
     Reserved.set(P2::OUTA);
     Reserved.set(P2::OUTB);
     Reserved.set(P2::DIRA);
     Reserved.set(P2::DIRB);
+    Reserved.set(P2::QX);
+    Reserved.set(P2::QY);
     return Reserved;
 }
 
@@ -86,10 +88,9 @@ void P2RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int SPA
 
     LLVM_DEBUG(errs() << "Offset     : " << offset << "\n" << "<--------->\n");
 
-    // FIXME for non-FRMIDX instructions!
     if (MI.getOpcode() == P2::FRMIDX) {
         MI.setDesc(inst_info.get(P2::MOVrr)); // change our psesudo instruction to a mov
-        MI.getOperand(FIOperandNum).ChangeToRegister(P2::SP, false); // change the abstract frame index register to our real stack pointer register
+        MI.getOperand(FIOperandNum).ChangeToRegister(P2::PTRA, false); // change the abstract frame index register to our real stack pointer register
         //MI.RemoveOperand(2); // remove the 3rd operand this instruction
 
         Register dst_reg = MI.getOperand(0).getReg();
@@ -110,7 +111,7 @@ void P2RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int SPA
         LLVM_DEBUG(errs() << "got reg to use " << reg << "\n");
 
         BuildMI(*MI.getParent(), II, dl, inst_info.get(P2::MOVrr), reg)
-                                .addReg(P2::SP); // save the SP to an unused register
+                                .addReg(P2::PTRA); // save the SP to an unused register
 
         BuildMI(*MI.getParent(), II, dl, inst_info.get(P2::SUBri), reg)
                                 .addReg(reg, RegState::Kill)
@@ -121,5 +122,5 @@ void P2RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int SPA
 }
 
 Register P2RegisterInfo::getFrameRegister(const MachineFunction &MF) const {
-    return P2::SP;
+    return P2::PTRA;
 }

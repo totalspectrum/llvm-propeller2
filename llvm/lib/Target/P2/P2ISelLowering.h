@@ -30,9 +30,13 @@ namespace llvm {
         enum NodeType {
             /// Start the numbering where the builtin ops leave off.
             FIRST_NUMBER = ISD::BUILTIN_OP_END,
-            /// Return from subroutine.
+            // Return from subroutine.
             RET,
+
+            // call subroutine
             CALL,
+
+            // global address rapper
             GAWRAPPER
         };
 

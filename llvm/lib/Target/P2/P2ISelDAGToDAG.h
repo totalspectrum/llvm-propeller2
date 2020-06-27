@@ -53,6 +53,8 @@ namespace llvm {
             return CurDAG->getTargetConstant(Imm, SDLoc(Node), Node->getValueType(0));
         }
 
+        void selectMultiplication(SDNode *N);
+
     public:
         explicit P2DAGToDAGISel(P2TargetMachine &TM, CodeGenOpt::Level OL)
             : SelectionDAGISel(TM, OL) {}

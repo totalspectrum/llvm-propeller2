@@ -303,7 +303,7 @@ bool P2AsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode, Operand
         case Match_Success: {
             Inst.setLoc(IDLoc);
             Inst.setFlags(Inst.getFlags() | P2::ALWAYS); // don't try to parse conditional instructions yet
-            Inst.dump();
+            LLVM_DEBUG(Inst.dump());
             Out.emitInstruction(Inst, getSTI());
             return false;
         }
@@ -402,7 +402,18 @@ bool P2AsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name, S
 }
 
 bool P2AsmParser::ParseDirective(llvm::AsmToken DirectiveID) {
-    llvm_unreachable("can't parse directives yet!");
+    LLVM_DEBUG(errs() << "Parse directive: " << DirectiveID.getString() << "\n");
+
+    // StringRef IDVal = DirectiveID.getIdentifier();
+
+    // if (IDVal.lower() == ".long") {
+    //     parseLiteralValues(SIZE_LONG, DirectiveID.getLoc());
+    // } else if (IDVal.lower() == ".word" || IDVal.lower() == ".short") {
+    //     parseLiteralValues(SIZE_WORD, DirectiveID.getLoc());
+    // } else if (IDVal.lower() == ".byte") {
+    //     parseLiteralValues(1, DirectiveID.getLoc());
+    // }
+
     return true;
 }
 
@@ -455,7 +466,7 @@ int P2AsmParser::matchRegisterName(StringRef Name) {
             .Case("r13",    P2::R13)
             .Case("r14",    P2::R14)
             .Case("r15",    P2::R15)
-            .Case("sp",     P2::SP)
+            //.Case("sp",     P2::PTRA)
             .Case("ptra",   P2::PTRA)
             .Case("ptrb",   P2::PTRB)
             .Case("dira",   P2::DIRA)

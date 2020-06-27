@@ -35,30 +35,49 @@ namespace {
         StringRef getPassName() const override { return "P2 Expand Pseudos"; }
 
     private:
+
+
+
         const P2InstrInfo *TII;
         const P2TargetMachine &TM;
 
+        void expand_QUDIV(MachineFunction &MF, MachineBasicBlock::iterator SII);
         void expand_QSREM(MachineFunction &MF, MachineBasicBlock::iterator SII);
         void expand_QUREM(MachineFunction &MF, MachineBasicBlock::iterator SII);
         void expand_MOVri32(MachineFunction &MF, MachineBasicBlock::iterator SII);
-        void expand_SELECTCC(MachineFunction &MF, MachineBasicBlock::iterator SII, unsigned cmp_op, unsigned mov_op);
+        void expand_SELECTCC(MachineFunction &MF, MachineBasicBlock::iterator SII, ISD::CondCode cc);
     };
 
     char P2ExpandPseudos::ID = 0;
 
 } // end anonymous namespace
 
+void P2ExpandPseudos::expand_QUDIV(MachineFunction &MF, MachineBasicBlock::iterator SII) {
+    MachineInstr &SI = *SII;
+
+    LLVM_DEBUG(errs()<<"== lower pseudo unsigned division\n");
+    LLVM_DEBUG(SI.dump());
+
+    BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(P2::QDIVrr))
+            .addReg(SI.getOperand(1).getReg())
+            .addReg(SI.getOperand(2).getReg());
+    BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(P2::GETQX), SI.getOperand(0).getReg())
+            .addReg(P2::QX);
+
+    SI.eraseFromParent();
+}
+
 void P2ExpandPseudos::expand_QSREM(MachineFunction &MF, MachineBasicBlock::iterator SII) {
     MachineInstr &SI = *SII;
+
+    errs() << "WARNING: Using srem, which hasn't been updated to handle negative numbers\n";
 
     LLVM_DEBUG(errs()<<"== lower pseudo signed remainder\n");
     LLVM_DEBUG(SI.dump());
 
-    BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(P2::QDIV))
+    BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(P2::QDIVrr))
             .addReg(SI.getOperand(1).getReg())
-            .addReg(SI.getOperand(2).getReg())
-            .addReg(P2::QX, RegState::Define)
-            .addReg(P2::QY, RegState::Define); // put the implicit registers at the end so that encoder/decoder first reads the real operands
+            .addReg(SI.getOperand(2).getReg());
     BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(P2::GETQY), SI.getOperand(0).getReg())
             .addReg(P2::QY);
 
@@ -71,9 +90,7 @@ void P2ExpandPseudos::expand_QUREM(MachineFunction &MF, MachineBasicBlock::itera
     LLVM_DEBUG(errs()<<"== lower pseudo unsigned remainder\n");
     LLVM_DEBUG(SI.dump());
 
-    BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(P2::QDIV))
-            .addReg(P2::QX, RegState::Define)
-            .addReg(P2::QY, RegState::Define)
+    BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(P2::QDIVrr))
             .addReg(SI.getOperand(1).getReg())
             .addReg(SI.getOperand(2).getReg());
     BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(P2::GETQY), SI.getOperand(0).getReg())
@@ -121,7 +138,7 @@ void P2ExpandPseudos::expand_MOVri32(MachineFunction &MF, MachineBasicBlock::ite
  * cmp lhs (operand 1), rhs (operand 2)
  * <cond move> d (operand 0), t (operand 3) based on operand 5
  */
-void P2ExpandPseudos::expand_SELECTCC(MachineFunction &MF, MachineBasicBlock::iterator SII, unsigned cmp_op, unsigned mov_op) {
+void P2ExpandPseudos::expand_SELECTCC(MachineFunction &MF, MachineBasicBlock::iterator SII, ISD::CondCode cc) {
     MachineInstr &SI = *SII;
 
     LLVM_DEBUG(errs()<<"== lower selectcc\n");
@@ -133,8 +150,99 @@ void P2ExpandPseudos::expand_SELECTCC(MachineFunction &MF, MachineBasicBlock::it
     const MachineOperand &t = SI.getOperand(3);     // register or immediate
     const MachineOperand &f = SI.getOperand(4);     // register or immediate
 
+    unsigned movf_op = P2::MOVrr;
+    unsigned mov_op;
+    unsigned cmp_op;
+
+    if (f.isImm()) {
+        movf_op = P2::MOVri;
+    }
+
+    switch(cc) {
+        case ISD::SETUEQ:
+        case ISD::SETUNE:
+        case ISD::SETULE:
+        case ISD::SETULT:
+        case ISD::SETUGT:
+        case ISD::SETUGE:
+            if (rhs.isImm()) {
+                cmp_op = P2::CMPri;
+            } else {
+                cmp_op = P2::CMPrr;
+            }
+            break;
+
+        case ISD::SETEQ:
+        case ISD::SETNE:
+        case ISD::SETLE:
+        case ISD::SETLT:
+        case ISD::SETGT:
+        case ISD::SETGE:
+            if (rhs.isImm()) {
+                cmp_op = P2::CMPSri;
+            } else {
+                cmp_op = P2::CMPSrr;
+            }
+            break;
+        default:
+            llvm_unreachable("unknown condition code in expand_SELECTCC for compare");
+    }
+
+    switch(cc) {
+        case ISD::SETUEQ:
+        case ISD::SETEQ:
+            if (t.isImm()) {
+                mov_op = P2::MOVeqri;
+            } else {
+                mov_op = P2::MOVeqrr;
+            }
+            break;
+        case ISD::SETUNE:
+        case ISD::SETNE:
+            if (t.isImm()) {
+                mov_op = P2::MOVneri;
+            } else {
+                mov_op = P2::MOVnerr;
+            }
+            break;
+        case ISD::SETULE:
+        case ISD::SETLE:
+            if (t.isImm()) {
+                mov_op = P2::MOVlteri;
+            } else {
+                mov_op = P2::MOVlterr;
+            }
+            break;
+        case ISD::SETULT:
+        case ISD::SETLT:
+            if (t.isImm()) {
+                mov_op = P2::MOVltri;
+            } else {
+                mov_op = P2::MOVltrr;
+            }
+            break;
+        case ISD::SETUGT:
+        case ISD::SETGT:
+            if (t.isImm()) {
+                mov_op = P2::MOVgtri;
+            } else {
+                mov_op = P2::MOVgtrr;
+            }
+            break;
+        case ISD::SETUGE:
+        case ISD::SETGE:
+            if (t.isImm()) {
+                mov_op = P2::MOVgteri;
+            } else {
+                mov_op = P2::MOVgterr;
+            }
+            break;
+        default:
+            llvm_unreachable("unknown condition code in expand_SELECTCC for move");
+    }
+
     // mov false into the destination
-    BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(P2::MOVri), d.getReg())
+    BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(movf_op), d.getReg())
             .getInstr()->addOperand(f);
     BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(cmp_op), P2::SW)
             .addReg(lhs.getReg())
@@ -154,6 +262,9 @@ bool P2ExpandPseudos::runOnMachineFunction(MachineFunction &MF) {
         while (MBBI != E) {
             MachineBasicBlock::iterator NMBBI = std::next(MBBI);
             switch (MBBI->getOpcode()) {
+                case P2::QUDIV:
+                    expand_QUDIV(MF, MBBI);
+                    break;
                 case P2::QSREM:
                     expand_QSREM(MF, MBBI);
                     break;
@@ -163,23 +274,109 @@ bool P2ExpandPseudos::runOnMachineFunction(MachineFunction &MF) {
                 case P2::MOVri32:
                     expand_MOVri32(MF, MBBI);
                     break;
+
+
+
+SELECTugt
+SELECTuge
+SELECTle
+SELECTlt
+SELECTgt
+SELECTge
+
+                // FIXME: There might be a smarter way to do this than list out 8x12 cases...
+                // unsigned equal
+                case P2::SELECTueqrrr:
+                case P2::SELECTueqrri:
+                case P2::SELECTueqrir:
+                case P2::SELECTueqrii:
+                case P2::SELECTueqirr:
+                case P2::SELECTueqiri:
+                case P2::SELECTueqiir:
+                case P2::SELECTueqiii:
+                    expand_SELECTCC(MF, MBBI, ISD::SETUEQ);
+                    break;
+                // unsigned not equal
+                case P2::SELECTunerrr:
+                case P2::SELECTunerri:
+                case P2::SELECTunerir:
+                case P2::SELECTunerii:
+                case P2::SELECTuneirr:
+                case P2::SELECTuneiri:
+                case P2::SELECTuneiir:
+                case P2::SELECTuneiii:
+                    expand_SELECTCC(MF, MBBI, ISD::SETUNE);
+                    break;
+                // unsigned less than or equal
+                case P2::SELECTulerrr:
+                case P2::SELECTulerri:
+                case P2::SELECTulerir:
+                case P2::SELECTulerii:
+                case P2::SELECTuleirr:
+                case P2::SELECTuleiri:
+                case P2::SELECTuleiir:
+                case P2::SELECTuleiii:
+                    expand_SELECTCC(MF, MBBI, ISD::SETULE);
+                    break;
+
+                // unsigned less than
+                case P2::SELECTultrrr:
+                case P2::SELECTultrri:
+                case P2::SELECTultrir:
+                case P2::SELECTultrii:
+                case P2::SELECTultirr:
+                case P2::SELECTultiri:
+                case P2::SELECTultiir:
+                case P2::SELECTultiii:
+                    expand_SELECTCC(MF, MBBI, ISD::SETULT);
+                    break;
+
+                // unsigned greater than
+                case P2::SELECTugtrrr:
+                case P2::SELECTugtrri:
+                case P2::SELECTugtrir:
+                case P2::SELECTugtrii:
+                case P2::SELECTugtirr:
+                case P2::SELECTugtiri:
+                case P2::SELECTugtiir:
+                case P2::SELECTugtiii:
+                    expand_SELECTCC(MF, MBBI, ISD::SETUGT);
+                    break;
+
+                // unsigned greater than or equal
+                case P2::SELECTugerrr:
+                case P2::SELECTugerri:
+                case P2::SELECTugerir:
+                case P2::SELECTugerii:
+                case P2::SELECTugeirr:
+                case P2::SELECTugeiri:
+                case P2::SELECTugeiir:
+                case P2::SELECTugeiii:
+                    expand_SELECTCC(MF, MBBI, ISD::SETUGE);
+                    break;
+
+                // signed equal
                 case P2::SELECTeqrrr:
                 case P2::SELECTeqrri:
-                    expand_SELECTCC(MF, MBBI, P2::CMPrr, P2::MOVeqrr);
-                    break;
                 case P2::SELECTeqrir:
                 case P2::SELECTeqrii:
-                    expand_SELECTCC(MF, MBBI, P2::CMPrr, P2::MOVeqri);
-                    break;
                 case P2::SELECTeqirr:
                 case P2::SELECTeqiri:
-                    expand_SELECTCC(MF, MBBI, P2::CMPri, P2::MOVeqrr);
-                    break;
                 case P2::SELECTeqiir:
                 case P2::SELECTeqiii:
-                    expand_SELECTCC(MF, MBBI, P2::CMPri, P2::MOVeqri);
+                    expand_SELECTCC(MF, MBBI, ISD::SETEQ);
                     break;
-                default:
+
+                // signed not equal
+                case P2::SELECTnerrr:
+                case P2::SELECTnerri:
+                case P2::SELECTnerir:
+                case P2::SELECTnerii:
+                case P2::SELECTneirr:
+                case P2::SELECTneiri:
+                case P2::SELECTneiir:
+                case P2::SELECTneiii:
+                    expand_SELECTCC(MF, MBBI, ISD::SETNE);
                     break;
             }
 
