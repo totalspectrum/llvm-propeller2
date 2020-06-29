@@ -21,6 +21,7 @@
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/RegisterScavenging.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Support/CommandLine.h"
@@ -31,7 +32,7 @@ How the call stack will work:
 
 The stack will grow up. regsiter sp always points to the TOP of the stack, which is the start of free stack space.
 Selection will generate FRMIDX pseudo instructions that will be lowered in register info by be subtracting from the
-current stack pointer (sp) by the frame index offset. The callee will not save any info. The data in the stack frame
+current stack pointer (sp) by the frame index offset. The callee will not save any regsiters it uses. The data in the stack frame
 will be organized as follows:
 
         free stack space (callee stack space)
@@ -57,6 +58,8 @@ using namespace llvm;
 // pointer register.  This is true if the function has variable sized allocas,
 // if it needs dynamic stack realignment, if frame pointer elimination is
 // disabled, or if the frame address is taken.
+//
+// TODO figure out if this function is actually needed or if can always return a static value
 bool P2FrameLowering::hasFP(const MachineFunction &MF) const {
     const MachineFrameInfo *MFI = &MF.getFrameInfo();
     const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
@@ -65,8 +68,6 @@ bool P2FrameLowering::hasFP(const MachineFunction &MF) const {
     //             "; var sized objects: " << MFI->hasVarSizedObjects() <<
     //             "; frame address is taken: " << MFI->isFrameAddressTaken() <<
     //             "; needs stack realignment: " << TRI->needsStackRealignment(MF) << "\n");
-
-    // I don't think we'll ever need a frame pointer
 
     return MF.getTarget().Options.DisableFramePointerElim(MF) ||
             MFI->hasVarSizedObjects() || MFI->isFrameAddressTaken() ||
@@ -82,15 +83,10 @@ void P2FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) 
 
     // Debug location must be unknown since the first debug location is used
     // to determine the end of the prologue.
-    DebugLoc dl;
+    // DebugLoc dl;
     const MachineFrameInfo &MFI = MF.getFrameInfo();
-    const std::vector<CalleeSavedInfo> &CSI = MFI.getCalleeSavedInfo();
-    P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
-
-    if (MF.getFunction().isVarArg()) {
-        // Add in the varargs area here first.
-        llvm_unreachable("can't yet emit prologues for vararg functions");
-    }
+    //const std::vector<CalleeSavedInfo> &CSI = MFI.getCalleeSavedInfo();
+    //P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
 
     LLVM_DEBUG(errs() << "\n");
 
@@ -113,20 +109,6 @@ void P2FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) 
     MachineFrameInfo *MFI = &MF.getFrameInfo();
 
     const P2InstrInfo *TII = MF.getSubtarget<P2Subtarget>().getInstrInfo();
-
-    // if framepointer enabled, restore the stack pointer.
-    // if (hasFP(MF)) {
-    //     llvm_unreachable("emit epilogue: hasFP not implemented");
-    //     // Find the first instruction that restores a callee-saved register.
-    //     // MachineBasicBlock::iterator I = MBBI;
-
-    //     // for (unsigned i = 0; i < MFI->getCalleeSavedInfo().size(); ++i) {
-    //     //     --I;
-    //     // }
-
-    //     // // Insert instruction "move $sp, $fp" at this location.
-    //     // BuildMI(MBB, I, dl, TII.get(ADDu), SP).addReg(FP).addReg(ZERO);
-    // }
 
     // Get the number of bytes from FrameInfo
     uint64_t StackSize = MFI->getStackSize();
@@ -173,6 +155,8 @@ bool P2FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, MachineB
 
         LLVM_DEBUG(errs() << "--- spilling " << Reg << " to " << CSI[i-1].getFrameIdx() << "\n");
     }
+
+
 
     return true;
 }

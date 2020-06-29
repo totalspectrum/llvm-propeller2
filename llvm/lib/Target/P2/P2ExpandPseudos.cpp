@@ -275,15 +275,6 @@ bool P2ExpandPseudos::runOnMachineFunction(MachineFunction &MF) {
                     expand_MOVri32(MF, MBBI);
                     break;
 
-
-
-SELECTugt
-SELECTuge
-SELECTle
-SELECTlt
-SELECTgt
-SELECTge
-
                 // FIXME: There might be a smarter way to do this than list out 8x12 cases...
                 // unsigned equal
                 case P2::SELECTueqrrr:
@@ -377,6 +368,54 @@ SELECTge
                 case P2::SELECTneiir:
                 case P2::SELECTneiii:
                     expand_SELECTCC(MF, MBBI, ISD::SETNE);
+                    break;
+
+                // unsigned less than or equal
+                case P2::SELECTlerrr:
+                case P2::SELECTlerri:
+                case P2::SELECTlerir:
+                case P2::SELECTlerii:
+                case P2::SELECTleirr:
+                case P2::SELECTleiri:
+                case P2::SELECTleiir:
+                case P2::SELECTleiii:
+                    expand_SELECTCC(MF, MBBI, ISD::SETLE);
+                    break;
+
+                // unsigned less than
+                case P2::SELECTltrrr:
+                case P2::SELECTltrri:
+                case P2::SELECTltrir:
+                case P2::SELECTltrii:
+                case P2::SELECTltirr:
+                case P2::SELECTltiri:
+                case P2::SELECTltiir:
+                case P2::SELECTltiii:
+                    expand_SELECTCC(MF, MBBI, ISD::SETLT);
+                    break;
+
+                // unsigned greater than
+                case P2::SELECTgtrrr:
+                case P2::SELECTgtrri:
+                case P2::SELECTgtrir:
+                case P2::SELECTgtrii:
+                case P2::SELECTgtirr:
+                case P2::SELECTgtiri:
+                case P2::SELECTgtiir:
+                case P2::SELECTgtiii:
+                    expand_SELECTCC(MF, MBBI, ISD::SETGT);
+                    break;
+
+                // unsigned greater than or equal
+                case P2::SELECTgerrr:
+                case P2::SELECTgerri:
+                case P2::SELECTgerir:
+                case P2::SELECTgerii:
+                case P2::SELECTgeirr:
+                case P2::SELECTgeiri:
+                case P2::SELECTgeiir:
+                case P2::SELECTgeiii:
+                    expand_SELECTCC(MF, MBBI, ISD::SETGE);
                     break;
             }
 

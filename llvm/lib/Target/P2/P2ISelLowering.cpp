@@ -83,9 +83,18 @@ P2TargetLowering::P2TargetLowering(const P2TargetMachine &TM) : TargetLowering(T
     // See https://llvm.org/doxygen/TargetLowering_8h_source.html#l00192 for the various action
     setOperationAction(ISD::GlobalAddress, MVT::i32, Custom);
 
-    // setOperationAction(ISD::SHL_PARTS, MVT::i32, Expand);
-    // setOperationAction(ISD::SRA_PARTS, MVT::i32, Expand);
-    // setOperationAction(ISD::SRL_PARTS, MVT::i32, Expand);
+    setOperationAction(ISD::VASTART, MVT::Other, Custom);
+    setOperationAction(ISD::VAARG, MVT::Other, Custom);
+    setOperationAction(ISD::VACOPY, MVT::Other, Expand);
+    setOperationAction(ISD::VAEND, MVT::Other, Expand);
+
+    // Use the default for now
+    setOperationAction(ISD::STACKSAVE, MVT::Other, Expand);
+    setOperationAction(ISD::STACKRESTORE, MVT::Other, Expand);
+
+    setOperationAction(ISD::SHL_PARTS, MVT::i32, Expand);
+    setOperationAction(ISD::SRA_PARTS, MVT::i32, Expand);
+    setOperationAction(ISD::SRL_PARTS, MVT::i32, Expand);
 }
 
 SDValue P2TargetLowering::lowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const {
@@ -99,6 +108,42 @@ SDValue P2TargetLowering::lowerGlobalAddress(SDValue Op, SelectionDAG &DAG) cons
     return DAG.getNode(P2ISD::GAWRAPPER, SDLoc(Op), getPointerTy(DL), Result);
 }
 
+SDValue P2TargetLowering::lowerVASTART(SDValue Op, SelectionDAG &DAG) const {
+    MachineFunction &MF = DAG.getMachineFunction();
+    P2FunctionInfo *FuncInfo = MF.getInfo<P2FunctionInfo>();
+
+    SDLoc DL = SDLoc(Op);
+    SDValue FI = DAG.getFrameIndex(FuncInfo->getVarArgsFrameIndex(), getPointerTy(MF.getDataLayout()));
+
+    // vastart just stores the address of the VarArgsFrameIndex slot into the
+    // memory location argument.
+    const Value *SV = cast<SrcValueSDNode>(Op.getOperand(2))->getValue();
+    return DAG.getStore(Op.getOperand(0), DL, FI, Op.getOperand(1), MachinePointerInfo(SV));
+}
+
+SDValue P2TargetLowering::lowerVAARG(SDValue Op, SelectionDAG &DAG) const {
+    SDNode *Node = Op.getNode();
+    EVT VT = Node->getValueType(0);
+    SDValue Chain = Node->getOperand(0);
+    SDValue VAListPtr = Node->getOperand(1);
+    const Value *SV = cast<SrcValueSDNode>(Node->getOperand(2))->getValue();
+    SDLoc DL(Node);
+
+    SDValue VAListLoad = DAG.getLoad(getPointerTy(DAG.getDataLayout()), DL, Chain, VAListPtr, MachinePointerInfo(SV));
+    SDValue VAList = VAListLoad;
+
+    // Decrement the pointer, VAList, to the next vaarg.
+    auto &TD = DAG.getDataLayout();
+    unsigned ArgSizeInBytes = TD.getTypeAllocSize(VT.getTypeForEVT(*DAG.getContext()));
+    SDValue sub = DAG.getNode(ISD::SUB, DL, VAList.getValueType(), VAList, DAG.getConstant(4, DL, VAList.getValueType()));
+
+    // Store the incremented VAList to the legalized pointer
+    Chain = DAG.getStore(VAListLoad.getValue(1), DL, sub, VAListPtr, MachinePointerInfo(SV));
+
+    // Load the actual argument out of the pointer VAList
+    return DAG.getLoad(VT, DL, Chain, VAList, MachinePointerInfo(SV));
+}
+
 #include "P2GenCallingConv.inc"
 
 //===----------------------------------------------------------------------===//
@@ -109,7 +154,12 @@ SDValue P2TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
     switch (Op.getOpcode()) {
         case ISD::GlobalAddress:
             return lowerGlobalAddress(Op, DAG);
+        case ISD::VASTART:
+            return lowerVASTART(Op, DAG);
+        case ISD::VAARG:
+            return lowerVAARG(Op, DAG);
     }
+
     return SDValue();
 }
 
@@ -129,10 +179,12 @@ SDValue P2TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     bool &isTailCall                      = CLI.IsTailCall;
 
     MachineFunction &MF = DAG.getMachineFunction();
-    MachineFrameInfo *MFI = &MF.getFrameInfo();
+    //MachineFrameInfo *MFI = &MF.getFrameInfo();
     const TargetFrameLowering *TFL = MF.getSubtarget().getFrameLowering();
-    P2FunctionInfo *FuncInfo = MF.getInfo<P2FunctionInfo>();
-    P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
+    //P2FunctionInfo *FuncInfo = MF.getInfo<P2FunctionInfo>();
+    //P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
+
+    LLVM_DEBUG(errs() << "=== Lower Call\n");
 
     // P2 does not yet support tail call optimization.
     isTailCall = false;
@@ -140,12 +192,16 @@ SDValue P2TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     // Analyze operands of the call, assigning locations to each operand.
     SmallVector<CCValAssign, 16> ArgLocs;
     CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), ArgLocs, *DAG.getContext());
-    CCInfo.AnalyzeCallOperands(Outs, CC_P2);
+    if (IsVarArg) {
+        CCInfo.AnalyzeCallOperands(Outs, CC_P2_Vararg);
+    } else {
+        CCInfo.AnalyzeCallOperands(Outs, CC_P2);
+    }
 
     // Get a count of how many bytes are to be pushed on the stack.
     unsigned NextStackOffset = CCInfo.getNextStackOffset();
 
-    LLVM_DEBUG(errs() << "Calling function. next stack offset is " << NextStackOffset << "\n");
+    LLVM_DEBUG(errs() << "Calling function: "; MF.dump(); errs() << "Next stack offset is " << NextStackOffset << "\n");
 
     // Chain is the output chain of the last Load/Store or CopyToReg node.
     unsigned StackAlignment = TFL->getStackAlignment();
@@ -170,7 +226,7 @@ SDValue P2TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
         SDValue Arg = OutVals[i];
         CCValAssign &VA = ArgLocs[i];
         MVT LocVT = VA.getLocVT();
-        ISD::ArgFlagsTy Flags = Outs[i].Flags;
+        //ISD::ArgFlagsTy Flags = Outs[i].Flags;
 
         // Promote the value if needed.
         switch (VA.getLocInfo()) {
@@ -197,7 +253,8 @@ SDValue P2TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
             assert(VA.isMemLoc());
 
             SDValue PtrOff;
-            int off = VA.getLocMemOffset()-4; // -4 because current SP is free
+            int off = VA.getLocMemOffset()-4; // 4 because current SP is free
+            LLVM_DEBUG(errs() << "stack offset for argument: " << off << "\n");
             PtrOff = DAG.getNode(ISD::SUB, DL, getPointerTy(DAG.getDataLayout()), StackPtr, DAG.getIntPtrConstant(-off, DL));
             MemOpChains.push_back(DAG.getStore(Chain, DL, Arg, PtrOff, MachinePointerInfo()));
         }
@@ -213,9 +270,7 @@ SDValue P2TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     // node so that legalize doesn't hack it.
     bool GlobalOrExternal = false, InternalLinkage = false;
     SDValue CalleeLo;
-    EVT Ty = Callee.getValueType();
-
-    LLVM_DEBUG(errs() << "callee: "; Callee.dump());
+    //EVT Ty = Callee.getValueType();
 
     if (GlobalAddressSDNode *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
         Callee = DAG.getTargetGlobalAddress(G->getGlobal(), DL, getPointerTy(DAG.getDataLayout()), 0);
@@ -271,7 +326,6 @@ SDValue P2TargetLowering::LowerCallResult(SDValue Chain, SDValue InFlag,
         const CCValAssign &VA = RVLocs[i];
         if (VA.isRegLoc()) {
             SDValue RetValue;
-            const TargetRegisterClass *RC = getRegClassFor(VA.getLocVT());
 
             // Transform the arguments stored on
             // physical registers into virtual ones
@@ -311,21 +365,21 @@ SDValue P2TargetLowering::LowerFormalArguments(SDValue Chain,
     SmallVector<SDValue, 12> MemOpChains;
     std::vector<SDValue> OutChains;
 
-    // P2FI->setVarArgsFrameIndex(0);
-
     // Assign locations to all of the incoming arguments.
     SmallVector<CCValAssign, 16> ArgLocs;
     CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), ArgLocs, *DAG.getContext());
-    CCInfo.AnalyzeFormalArguments(Ins, CC_P2);
+
+    if (IsVarArg) {
+        CCInfo.AnalyzeFormalArguments(Ins, CC_P2_Vararg);
+    } else {
+        CCInfo.AnalyzeFormalArguments(Ins, CC_P2);
+    }
 
     P2FI->setFormalArgInfo(CCInfo.getNextStackOffset(), CCInfo.getInRegsParamsCount() > 0);
 
     const Function &Func = DAG.getMachineFunction().getFunction();
-    Function::const_arg_iterator FuncArg = Func.arg_begin();
 
     CCInfo.rewindByValRegsInfo();
-
-    unsigned CurArgIdx = 0;
 
     // iterate over the argument locations and create copies to virtual registers
     for (unsigned i = 0; i < ArgLocs.size(); i++) {
@@ -369,7 +423,7 @@ SDValue P2TargetLowering::LowerFormalArguments(SDValue Chain,
             InVals.push_back(ArgValue);
         } else {
             // arguments stored in memory
-            MVT LocVT = VA.getLocVT();
+            //MVT LocVT = VA.getLocVT();
 
             // sanity check
             assert(VA.isMemLoc());
@@ -378,8 +432,10 @@ SDValue P2TargetLowering::LowerFormalArguments(SDValue Chain,
             unsigned ObjSize = VA.getLocVT().getStoreSize();
             assert((ObjSize <= 4) && "Unhandled argument--object size > stack slot size (4 bytes)");
 
-            // Create the frame index object for this incoming parameter.
+            // Create the frame index object for this incoming parameter
             int FI = MFI->CreateFixedObject(ObjSize, VA.getLocMemOffset(), true);
+
+            LLVM_DEBUG(errs() << "Loading argument from index " << FI << "\n");
 
             // Create the SelectionDAG nodes corresponding to a load from this parameter
             SDValue FIN = DAG.getFrameIndex(FI, MVT::i32);
@@ -388,6 +444,13 @@ SDValue P2TargetLowering::LowerFormalArguments(SDValue Chain,
             InVals.push_back(ArgValue);
             OutChains.push_back(ArgValue.getValue(1));
         }
+    }
+
+    if (IsVarArg) {
+        int fi = MFI->CreateFixedObject(4, CCInfo.getNextStackOffset(), true);
+        P2FI->setVarArgsFrameIndex(fi);
+    } else {
+        P2FI->setVarArgsFrameIndex(0);
     }
 
     // All stores are grouped in one node to allow the matching between
@@ -506,13 +569,6 @@ void P2TargetLowering::getOpndList(SmallVectorImpl<SDValue> &Ops,
     const TargetRegisterInfo *TRI = target_machine.getRegisterInfo();
     const uint32_t *Mask = TRI->getCallPreservedMask(CLI.DAG.getMachineFunction(), CLI.CallConv);
     assert(Mask && "Missing call preserved mask for calling convention");
-    // if (GlobalAddressSDNode *G = dyn_cast<GlobalAddressSDNode>(CLI.Callee)) {
-    //     StringRef Sym = G->getGlobal()->getName();
-    //     Function *F = G->getGlobal()->getParent()->getFunction(Sym);
-    //     if (F && F->hasFnAttribute("__Mips16RetHelper")) {
-    //         Mask = MipsRegisterInfo::getMips16RetHelperMask();
-    //     }
-    // }
 
     Ops.push_back(CLI.DAG.getRegisterMask(Mask));
 

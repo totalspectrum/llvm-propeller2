@@ -1,6 +1,5 @@
 /*
-  This tests variadic functions. One of the last things needed before we can begin implementing a much more complex library
-  Also, this expands to start introducing an implementation of the C standard library
+  This tests UART printing
 
   compilation:
     make

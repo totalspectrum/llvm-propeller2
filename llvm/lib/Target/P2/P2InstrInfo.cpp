@@ -110,7 +110,7 @@ void P2InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
         .addFrameIndex(FrameIndex)
         .addMemOperand(MMO);
 
-    LLVM_DEBUG(errs() << ">> store reg " << SrcReg << " to stack " << FrameIndex << "\n");
+    LLVM_DEBUG(errs() << ">> store reg " << SrcReg << " to stack frame index " << FrameIndex << "\n");
 }
 
 void P2InstrInfo::adjustStackPtr(unsigned SP, int64_t amount, MachineBasicBlock &MBB, MachineBasicBlock::iterator I) const {

@@ -24,7 +24,7 @@ def CC_P2 : CallingConv<[
 
 // Calling convention for variadic functions.
 def CC_P2_Vararg : CallingConv <[
-    // i32 are always passed through the stack with an alignment of 4.
+    // i32 are always passed through the stack with an alignment of 1.
     CCAssignToStack<4, 1>
 ]>;
 
@@ -34,15 +34,6 @@ def RetCC_P2 : CallingConv <[
     CCIfType<[i32], CCAssignToReg<[R15, R14]>>,
 
     CCIfByVal<CCAssignToStack<4, 1>>,
-
-    // everything else is returns on the stack
-    // CCAssignToStack<4, 4>
-/*
-    // i64s are returned on the stack
-    CCIfType<[i64], CCAssignToStack<4, 1>>,
-
-
-    */
 ]>;
 
 def CSR : CalleeSavedRegs<(add (sequence "R%u", 0, 3))> {}

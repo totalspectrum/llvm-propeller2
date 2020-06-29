@@ -63,7 +63,7 @@ void P2RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int SPA
     DebugLoc dl = MI.getDebugLoc();
     MachineFunction &MF = *MI.getParent()->getParent();
     MachineFrameInfo &MFI = MF.getFrameInfo();
-    P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
+    //P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
     const P2TargetMachine &TM = (const P2TargetMachine &)MF.getTarget();
     const TargetInstrInfo &inst_info = *TM.getInstrInfo();
     const TargetFrameLowering *TFI = TM.getFrameLowering();
@@ -80,7 +80,7 @@ void P2RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int SPA
 
     offset += stackSize - fi_offset;
     offset += TFI->getOffsetOfLocalArea(); // LOA should be 0 for P2
-    //offset += MI.getOperand(FIOperandNum+1).getImm();
+
     assert(offset >= 0 && "Invalid offset"); // offset should be positive or 0
     LLVM_DEBUG(errs() << "FrameIndex : " << FrameIndex << "\n"
                         << "stackSize  : " << stackSize << "\n"
@@ -100,15 +100,22 @@ void P2RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int SPA
                                 .addReg(dst_reg, RegState::Kill)
                                 .addImm(offset);
     } else {
-        Register reg = RS->FindUnusedReg(&P2::P2GPRRegClass);
-        if (!reg) {
-            reg = RS->scavengeRegister(&P2::P2GPRRegClass, II, SPAdj);
-            RS->setRegUsed(reg);
-        }
+        // if we decide we need to scavange registers, we need to create an emergency stack slock in frame lowering,
+        // then make sure to kill the register after it is used here. For now, we can just use PTRB as a second stack pointer
+        // register for writing to this frame index
 
-        assert(reg && "Need to have a register for frame index elimination");
+        // Register reg = RS->FindUnusedReg(&P2::P2GPRRegClass);
+        // if (!reg) {
+        //     LLVM_DEBUG(errs() << "No unused registers available, scavenging one\n");
+        //     reg = RS->scavengeRegister(&P2::P2GPRRegClass, SPAdj);
+        //     RS->setRegUsed(reg);
+        // }
 
-        LLVM_DEBUG(errs() << "got reg to use " << reg << "\n");
+        // assert(reg && "Need to have a register for frame index elimination");
+
+        // LLVM_DEBUG(errs() << "got reg to use " << reg << "\n");
+
+        Register reg = P2::PTRB;
 
         BuildMI(*MI.getParent(), II, dl, inst_info.get(P2::MOVrr), reg)
                                 .addReg(P2::PTRA); // save the SP to an unused register

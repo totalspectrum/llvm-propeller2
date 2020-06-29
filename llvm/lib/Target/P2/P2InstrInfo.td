@@ -250,9 +250,12 @@ let DecoderMethod = "DecodeJumpInstruction" in {
 }
 
 def TJZrr   : P2InstIDS<0b101110010, 0b0, always, (outs), (ins P2GPR:$d, P2GPR:$s), "tjz $d, $s", []>;
-def TJZri   : P2InstIDS<0b101110010, 0b1, always, (outs), (ins P2GPR:$d, s9imm:$s), "tjz $d, #$s", []>;
+def TJZri   : P2InstIDS<0b101110010, 0b1, always, (outs), (ins P2GPR:$d, jmptarget:$s), "tjz $d, #$s", []>;
 
-// Patterns for various branch conditions
+def TJNZrr   : P2InstIDS<0b101110011, 0b0, always, (outs), (ins P2GPR:$d, P2GPR:$s), "tjz $d, $s", []>;
+def TJNZri   : P2InstIDS<0b101110011, 0b1, always, (outs), (ins P2GPR:$d, jmptarget:$s), "tjz $d, #$s", []>;
+
+// Patterns for various branch conditions and types of branch instructions
 // unsigned comparison
 def : Pat<(brcc SETUEQ, P2GPR:$lhs, P2GPR:$rhs, bb:$target), (JMPeq bb:$target, (CMPrr P2GPR:$lhs, P2GPR:$rhs))>;
 def : Pat<(brcc SETUEQ, P2GPR:$lhs, imm9:$rhs, bb:$target), (JMPeq bb:$target, (CMPri P2GPR:$lhs, imm9:$rhs))>;
@@ -291,6 +294,9 @@ def : Pat<(brcc SETGT, P2GPR:$lhs, imm9:$rhs, bb:$target), (JMPgt bb:$target, (C
 def : Pat<(brcc SETLE, P2GPR:$lhs, P2GPR:$rhs, bb:$target), (JMPlte bb:$target, (CMPSrr P2GPR:$lhs, P2GPR:$rhs))>;
 def : Pat<(brcc SETLE, P2GPR:$lhs, imm9:$rhs, bb:$target), (JMPlte bb:$target, (CMPSri P2GPR:$lhs, imm9:$rhs))>;
 
+// if (c) branch => jump if not 0
+def : Pat<(brcond P2GPR:$c, bb:$target), (TJNZri P2GPR:$c, bb:$target)>;
+
 /*--------------------------------*/
 /* moving data                    */
 /*--------------------------------*/
@@ -326,17 +332,29 @@ multiclass sel_cc <CondCode c> {
 
 // FIXME: expand the remaining ones
 defm SELECTueq   : sel_cc<SETUEQ>;
-defm SELECTune   : sel_cc<SETUNE>;  // not expanded
-defm SELECTule   : sel_cc<SETULE>;  // not expanded
+defm SELECTune   : sel_cc<SETUNE>;
+defm SELECTule   : sel_cc<SETULE>;
 defm SELECTult   : sel_cc<SETULT>;
-defm SELECTugt   : sel_cc<SETUGT>;  // not expanded
-defm SELECTuge   : sel_cc<SETUGE>;  // not expanded
+defm SELECTugt   : sel_cc<SETUGT>;
+defm SELECTuge   : sel_cc<SETUGE>;
 defm SELECTeq   : sel_cc<SETEQ>;
 defm SELECTne   : sel_cc<SETNE>;
-defm SELECTle   : sel_cc<SETLE>;    // not expanded
-defm SELECTlt   : sel_cc<SETLT>;    // not expanded
-defm SELECTgt   : sel_cc<SETGT>;    // not expanded
-defm SELECTge   : sel_cc<SETGE>;    // not expanded
+defm SELECTle   : sel_cc<SETLE>;
+defm SELECTlt   : sel_cc<SETLT>;
+defm SELECTgt   : sel_cc<SETGT>;
+defm SELECTge   : sel_cc<SETGE>;
+
+/*
+def SELECTrr    : Pseudo<(outs P2GPR:$d), (P2GPR:$t, P2GPR:$f), "select %d, $t, $f", [(set P2GPR:$d, (select P2GPR:$c, P2GPR:$t, P2GPR:$f))]>;
+def SELECTri    : Pseudo<(outs P2GPR:$d), (P2GPR:$t, s9imm:$f), "select %d, $t, #$f", [(set P2GPR:$d, (select P2GPR:$c, P2GPR:$t, imm9:$f))]>;
+def SELECTir    : Pseudo<(outs P2GPR:$d), (s9imm:$t, P2GPR:$f), "select %d, #$t, $f", [(set P2GPR:$d, (select P2GPR:$c, imm9:$t, P2GPR:$f))]>;
+def SELECTii    : Pseudo<(outs P2GPR:$d), (s9imm:$t, s9imm:$f), "select %d, #$t, #$f", [(set P2GPR:$d, (select P2GPR:$c, imm9:$t, imm9:$f))]>;
+*/
+
+def : Pat<(select P2GPR:$c, P2GPR:$t, P2GPR:$f), (SELECTuneirr P2GPR:$c, 0, P2GPR:$t, P2GPR:$f)>;
+def : Pat<(select P2GPR:$c, P2GPR:$t, imm9:$f), (SELECTuneiri P2GPR:$c, 0, P2GPR:$t, imm9:$f)>;
+def : Pat<(select P2GPR:$c, imm9:$t, P2GPR:$f), (SELECTuneiir P2GPR:$c, 0, imm9:$t, P2GPR:$f)>;
+def : Pat<(select P2GPR:$c, imm9:$t, imm9:$f), (SELECTuneiii P2GPR:$c, 0, imm9:$t, imm9:$f)>;
 
 // for immediate moves, use a psuedo instruction that will insert an AUGS. Later we will write an optimizer pass
 // that will replace the pattern of augs #imm32, mov <r> #imm9, <any instruction operating on r> to remove the

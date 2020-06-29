@@ -110,18 +110,13 @@ namespace llvm {
         SDValue LowerCall(TargetLowering::CallLoweringInfo &CLI,
                           SmallVectorImpl<SDValue> &InVals) const override;
 
-        //void HandleByVal(CCState *State, unsigned &Size, unsigned Align) const override;
-
         void passByValArg(SDValue Chain, const SDLoc &DL, SmallVectorImpl<SDValue> &MemOpChains, SDValue StackPtr, MachineFrameInfo &MFI,
                             SelectionDAG &DAG, SDValue Arg, const ISD::ArgFlagsTy &Flags, const CCValAssign &VA) const;
 
-        // void copyByValRegs(SDValue Chain, const SDLoc &DL, std::vector<SDValue> &OutChains,SelectionDAG &DAG,
-        //                     const ISD::ArgFlagsTy &Flags, SmallVectorImpl<SDValue> &InVals, const Argument *FuncArg,
-        //                     unsigned FirstReg, unsigned LastReg, const CCValAssign &VA) const;
-
-
         // Lower Operand specifics
         SDValue lowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
+        SDValue lowerVASTART(SDValue Op, SelectionDAG &DAG) const;
+        SDValue lowerVAARG(SDValue Op, SelectionDAG &DAG) const;
 
         SDValue LowerReturn(SDValue Chain,
                             CallingConv::ID CallConv, bool IsVarArg,
