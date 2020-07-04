@@ -55,8 +55,6 @@ void P2DAGToDAGISel::selectMultiplication(SDNode *N) {
     SDValue in_chain = CurDAG->getEntryNode();
     SDValue in_glue = SDValue(mul, 0);
 
-    //LLVM_DEBUG(mul->dump());
-
     // Copy the low half of the result, if it is needed.
     if (N->hasAnyUseOfValue(0)) {
         SDValue res = CurDAG->getCopyFromReg(in_chain, DL, P2::QX, vt, in_glue);
@@ -64,8 +62,6 @@ void P2DAGToDAGISel::selectMultiplication(SDNode *N) {
 
         in_chain = res.getValue(1);
         in_glue = res.getValue(2);
-
-        //LLVM_DEBUG(res.dump());
     }
 
     // Copy the high half of the result, if it is needed.
@@ -75,16 +71,64 @@ void P2DAGToDAGISel::selectMultiplication(SDNode *N) {
 
         in_chain = res.getValue(1);
         in_glue = res.getValue(2);
-
-        //LLVM_DEBUG(res.dump());
     }
 
     CurDAG->RemoveDeadNode(N);
 }
 
-void P2DAGToDAGISel::Select(SDNode *N) {
-    //unsigned Opcode = N->getOpcode();
+bool P2DAGToDAGISel::selectAddr(SDValue addr, SDValue &addr_result) {
+    EVT vt = addr.getValueType();
+    SDLoc DL(addr);
 
+    if (FrameIndexSDNode *FIN = dyn_cast<FrameIndexSDNode>(addr)) {
+        LLVM_DEBUG(errs() << "select addr: value is a frame index\n");
+        addr_result = CurDAG->getTargetFrameIndex(FIN->getIndex(), TLI->getPointerTy(CurDAG->getDataLayout()));
+        return true;
+    }
+
+    if (addr.getOpcode() == P2ISD::GAWRAPPER) {
+        addr_result = addr;//.getOperand(0);
+        return true;
+    }
+
+    if ((addr.getOpcode() == ISD::TargetExternalSymbol || addr.getOpcode() == ISD::TargetGlobalAddress)) {
+        return false;
+    }
+
+    if (CurDAG->isBaseWithConstantOffset(addr)) {
+        LLVM_DEBUG(errs() << "select addr: value is base with offset");
+        ConstantSDNode *CN = dyn_cast<ConstantSDNode>(addr.getOperand(1));
+        SDValue base;
+        SDNode *add;
+        if (isInt<9>(CN->getSExtValue())) {
+            // If the first operand is a FI, get the TargetFI Node
+            // if (FrameIndexSDNode *FIN = dyn_cast<FrameIndexSDNode>(addr.getOperand(0))) {
+            //     base = CurDAG->getTargetFrameIndex(FIN->getIndex(), vt);
+            //     LLVM_DEBUG(errs() << "...base is a frame index: ");
+            // } else {
+                base = addr.getOperand(0);
+                LLVM_DEBUG(errs() << "...base is: ");
+            //}
+
+            LLVM_DEBUG(base.dump());
+            SDValue off = CurDAG->getTargetConstant(CN->getZExtValue(), DL, vt);
+            add = CurDAG->getMachineNode(P2::ADDri, DL, vt, base, off);
+            addr_result = SDValue(add, 0);
+
+            // addr_result = CurDAG->getNode(ISD::ADD, DL, vt, base, off);
+            // SDNode *res = addr_result.getNode();
+            // res = SelectCode(res);
+            // addr_result = SDValue(res, 0);
+            return true;
+        }
+        llvm_unreachable("offset in address offset is too large!");
+    }
+
+    addr_result = addr;
+    return true;
+}
+
+void P2DAGToDAGISel::Select(SDNode *N) {
     // Dump information about the Node being selected
     LLVM_DEBUG(errs() << "<-------->\n");
     LLVM_DEBUG(errs() << "Selecting: "; N->dump(CurDAG); errs() << "\n");
@@ -100,7 +144,6 @@ void P2DAGToDAGISel::Select(SDNode *N) {
      * Instruction Selection not handled by the auto-generated
      * tablegen selection should be handled here.
      */
-    //EVT NodeTy = Node->getValueType(0);
     unsigned Opcode = N->getOpcode();
     auto DL = CurDAG->getDataLayout();
 
@@ -116,19 +159,7 @@ void P2DAGToDAGISel::Select(SDNode *N) {
             return;
         }
 
-        // case ISD::SUBE: {
-        //     SDValue InFlag = Node->getOperand(2);
-        //     selectAddESubE(Cpu0::SUBu, InFlag, InFlag.getOperand(0), DL, Node);
-        //     return true;
-        // }
-
-        // case ISD::ADDE: {
-        //     SDValue InFlag = Node->getOperand(2);
-        //     selectAddESubE(Cpu0::ADDu, InFlag, InFlag.getValue(0), DL, Node);
-        //     return true;
-        // }
-
-        /// Mul with two results
+        // Mul with two results
         case ISD::SMUL_LOHI:
             llvm_unreachable("DAGToDAG: no signed multiplication implementation yet");
         case ISD::UMUL_LOHI: {

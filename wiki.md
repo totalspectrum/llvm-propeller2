@@ -23,14 +23,14 @@ The goal of this project is to write an LLVM backend to generate code for the Pr
     - ~implement passing arguments by stack~
     - ~implement passing byval arguments (structs and classes)~
     - implement variable argument functions
-        - I think this will require spooling up the C standard library
+        - ~I think this will require spooling up the C standard library~ it won't
 1. add support for starting cogs at specific memory location
-    - ~~implement basic cog starting for cogs that do not require a stack~~
-    - implement including setq to pass the stack pointer and then assign the stack pointer to that value. Some startup code will be needed.
+    - ~implement basic cog starting for cogs that do not require a stack~
+    - ~implement including setq to pass the stack pointer and then assign the stack pointer to that value. Some startup code will be needed.~
 1. expand on the rest of the propeller instruction set
 1. create clang extensions for special directives and being able to write directly to I/O regsiters, etc.
 1. port the necessary functions from the c standard library to make c/c++ useful.
-    - This can be done using llvm-clib, implementing the necessary functions for P2
+    - port over propgcc library for this.
 
 The high level of how this will work:
 1. use clang to compile c/c++ source into LLVM's IR language. Eventually any LLVM front end should work
@@ -65,7 +65,7 @@ See README.md, with the following notes:
 The simplest way to make LLVM compatible with propeller is to divide the cog memory into various sections for various compiler features. This section defines that layout.
 
 ### Register Definition
-Cog memory is 512 longs. The last 16 are special registers (0x1f0 - 0x1ff, so we will use the previous 16 registers (0x1e0 - 0x1ef) as general purpose registers for the compiler. So r0 = 0x1e0, r1 = 0x1e1, etc. We'll also need a stack pointer and maybe a link register. We'll deal with this later. 2 more registers will be reserved for this.
+Cog memory is 512 longs. The last 16 are special registers (0x1f0 - 0x1ff, so we will use the previous 16 registers (0x1e0 - 0x1ef) as general purpose registers for the compiler. So r0 = 0x1e0, r1 = 0x1e1, etc. PTRA is used as the stack pointer, and PTRB is used sort of as a frame pointer, though it's considered used every time (so every time a frame index is referenced, it will save PTRA to PTRB, adjust PTRB, then perform the memory operatio at PTRB).
 
 ### Stack
 We'll need a stack for calling functions, etc. The first 256 longs of the look-up RAM will be a fixed stack for calls and such. So, the stack starts at 0x0 and grows up to 0x0ff. Initially we'll just use HUB RAM so that a typical architecture's load/store instructions can translate directly to rdlong/wrlong for memory read/writes, but eventually we'll add distinction between memories so that stack operatiosn use rdlut/wrlut, and normal memory operations needing the hub RAM will use rdlong/wrlong.
@@ -80,13 +80,13 @@ For starters, we will use a simple calling convention using the above registers 
 ### Passing Arguments
 - All 8 and 16 bit arguments are promoted to 32 bits
 - registers r0-r3 are used to pass first 4 arguments, remaining arguments are passed via the stack
-- byval arguments will be passed via the stack
+- byval arguments will be passed by pointer via registers, after a local copy is made by the caller. A pointer to where to write a result will be passed as well.
 
 ### Return Value
-- Functions will return values using r15.
-- byvals will be returned via the stack
+- Functions will return values using r15 and r14 (to easily support 64-bit returns)
+- byvals will be returned via the pointer provided by the caller
 
-When calling a function, the caller will increment sp to allocate space for the arguments that require stack space. It will then call the function (using propeller's CALL instruction) (TBD on how this will affect recursive calls, will probably reuqire implementing a link register that gets stored on the software stack). The callee will allocate the stack space it needs for it's local variables and return values. This it will do it's stuff and before returning (using the RET instruction), it will de-allocate the stack space.
+When calling a function, the caller will increment sp to allocate space for the arguments that require stack space. It will then call the function (using propeller's CALLA instruction). This pushes the PC to PTRA. The callee will allocate the stack space it needs for it's local variables and return values. This it will do its stuff and before returning (using the RET instruction), it will de-allocate the stack space.
 
 ## Program and memory organization
 
@@ -102,7 +102,7 @@ The end of the memory space (not yet described in detail) will be bss/rodata for
 
 ### Startup code
 
-Right now, the only thing the startup code does is setup the stack pointer for the cog and jump to the starting function of the cog. If the cog is cog 0, this is hardcoded to set `sp` to 0x00200 and jump to 0x00400. Otherwise, it pulls the initial stack pointer value and jump location from PTRA.
+Right now, the only thing the startup code does is setup the stack pointer for the cog and jump to the starting function of the cog. If the cog is cog 0, this is hardcoded to set `ptra` to 0x00200 and jump to 0x00400. Otherwise, it pulls the initial stack pointer value and jump location from PTRA.
 
 ## Linking/Loading Programs
 

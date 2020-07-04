@@ -10,11 +10,11 @@
 //===----------------------------------------------------------------------===//
 
 def CC_P2 : CallingConv<[
-    // Promote i8/i16 arguments to i32
-    CCIfType<[i8, i16], CCPromoteToType<i32>>,
+    // Promote i1/i8/i16 arguments to i32
+    CCIfType<[i1, i8, i16], CCPromoteToType<i32>>,
     // The first 4 arguments are passed in registers
     CCIfType<[i32], CCAssignToReg<[R0, R1, R2, R3]>>,
-    // Fall-back, and use the stack, stack is 4 bytes wide and byte aligned.
+    // Fall-back, and use the stack, stack slot is 4 bytes wide and byte aligned.
     CCIfType<[i32], CCAssignToStack<4, 1>>,
     // 64 bit arguments are passed on the stack
     CCIfType<[i64], CCAssignToStack<8, 1>>,
@@ -24,7 +24,7 @@ def CC_P2 : CallingConv<[
 
 // Calling convention for variadic functions.
 def CC_P2_Vararg : CallingConv <[
-    // i32 are always passed through the stack with an alignment of 1.
+    // variable args are always passed through the stack with an alignment of 1.
     CCAssignToStack<4, 1>
 ]>;
 

@@ -7,7 +7,9 @@
     make
 */
 
+#define P2_TARGET_MHZ   200
 #include "propeller2.h"
+#include "sys/p2es_clock.h"
 
 volatile unsigned int blink1_stack[32];
 volatile unsigned int blink2_stack[32];
@@ -30,6 +32,8 @@ void blink(void *par) {
     }
 }
 
+led_mb_t modify_led_mb(led_mb_t l) __attribute__((noinline));
+
 led_mb_t modify_led_mb(led_mb_t l) {
     if (l.pin == 56) {
         l.pin = 57;
@@ -37,8 +41,8 @@ led_mb_t modify_led_mb(led_mb_t l) {
         l.pin = 58;
     }
 
-    if (l.delay == 25000000) {
-        l.delay = 5000000;
+    if (l.delay == 200000000) {
+        l.delay = 100000000;
     }
 
     return l;
@@ -47,12 +51,13 @@ led_mb_t modify_led_mb(led_mb_t l) {
 int main() {
 
     //waitx(12500000);
+    clkset(_SETFREQ, _CLOCKFREQ);
 
     led_mb_t led1;
     led_mb_t led2;
 
     led1.pin = 56;
-    led1.delay = 25000000;
+    led1.delay = 200000000;
     led2 = modify_led_mb(led1);
 
     cognew(blink, (int)&led1, (unsigned int*)blink1_stack);

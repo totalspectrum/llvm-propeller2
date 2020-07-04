@@ -46,14 +46,8 @@ namespace llvm {
         }
 
         void Select(SDNode *N) override;
-        //bool SelectAddr(SDNode *Parent, SDValue N, SDValue &Base, SDValue &Offset);
-
-        // getImm - Return a target constant with the specified value.
-        inline SDValue getImm(const SDNode *Node, unsigned Imm) {
-            return CurDAG->getTargetConstant(Imm, SDLoc(Node), Node->getValueType(0));
-        }
-
         void selectMultiplication(SDNode *N);
+        bool selectAddr(SDValue addr, SDValue &addr_result);
 
     public:
         explicit P2DAGToDAGISel(P2TargetMachine &TM, CodeGenOpt::Level OL)

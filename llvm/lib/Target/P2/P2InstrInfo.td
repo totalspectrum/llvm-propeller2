@@ -35,37 +35,21 @@ def calltarget : Operand<iPTR> {
     let EncoderMethod = "encodeCallTarget";
 }
 
-def NegateImm : SDNodeXForm<imm, [{return CurDAG->getConstant(-N->getSExtValue(), SDLoc(N), MVT::i32);}]>;
+def NegateImm : SDNodeXForm<imm, [{return CurDAG->getConstant(-N->getSExtValue(), SDLoc(N), MVT::i32, true);}]>;
 def NegSubInlineConst32 : ImmLeaf<i32, [{return Imm < 0;}], NegateImm>;
-
-/*
-def HI23 : SDNodeXForm<imm, [{
-    // Transformation function: shift the upper 23 of the imm value down into the low bits.
-    return getI32Imm((unsigned)N->getZExtValue() >> 9, SDLoc(N));
-}]>;
-
-def LO9 : SDNodeXForm<imm, [{
-    // Transformation function: mask the lower 9 of the imm value down into the low bits.
-    return getI32Imm((unsigned)N->getZExtValue() & 0x1ff, SDLoc(N));
-}]>;*/
 
 def s9imm : Operand<i32>; // 9 bit immediate
 
-def imm9 : PatLeaf<(i32 imm), [{ // select this leaf when the immediate is between -2^8 and 2^8
-    int32_t v = N->getSExtValue();
-    return ((v >= -(1 << 8)) && (v < (1 << 8)));
-}]>;
-
-def uimm9 : PatLeaf<(i32 imm), [{ // select this leaf when the immediate is between 0 and 2^9
+def imm9 : PatLeaf<(i32 imm), [{ // select this leaf when the immediate is between 0 and 2^9
     int32_t v = N->getZExtValue();
     return (v > 0) && (v < (1 << 9));
 }]>;
 
-/*
-def imm23 : PatLeaf<(i32 imm), [{ // pattern for upper 23 bits of an immediate
-    return (N->getZExtValue() & ~uint32_t(0xFFFFFE00)) == 0;
-}], HI23>;
-*/
+def P2MemAsmOperand : AsmOperandClass {
+  let Name = "Mem";
+}
+
+def addr : ComplexPattern<iPTR, 1, "selectAddr", [], []>;
 
 /*--------------------------------*/
 /* custom nodes                   */
@@ -108,9 +92,6 @@ let Constraints = "$src1 = $d" in {
     def SUBri   : P2InstCZIDS<0b0001100, 0b001, always, (outs P2GPR:$d), (ins P2GPR:$src1, s9imm:$s), "sub $d, #$s", [(set P2GPR:$d, (sub P2GPR:$src1, imm9:$s))]>;
 }
 
-// convert add -c to sub c
-def : Pat<(add i32:$d, (i32 NegSubInlineConst32:$s)), (SUBri $d, NegSubInlineConst32:$s)>;
-
 let Constraints = "$src1 = $d" in {
     def RORrr   : P2InstCZIDS<0b0000000, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$src1, P2GPR:$s), "ror $d, $s", []>;
     def RORri   : P2InstCZIDS<0b0000000, 0b001, always, (outs P2GPR:$d), (ins P2GPR:$src1, s9imm:$s), "ror $d, #$s", []>;
@@ -137,10 +118,10 @@ let Constraints = "$src1 = $d" in {
     def SALri   : P2InstCZIDS<0b0000111, 0b001, always, (outs P2GPR:$d), (ins P2GPR:$src1, s9imm:$s), "sal $d, #$s", []>;
 
     def ADDrr   : P2InstCZIDS<0b0001000, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$src1, P2GPR:$s), "add $d, $s", [(set P2GPR:$d, (add P2GPR:$src1, P2GPR:$s))]>;
-    def ADDri   : P2InstCZIDS<0b0001000, 0b001, always, (outs P2GPR:$d), (ins P2GPR:$src1, s9imm:$s), "add $d, #$s", [(set P2GPR:$d, (add P2GPR:$src1, uimm9:$s))]>;
+    def ADDri   : P2InstCZIDS<0b0001000, 0b001, always, (outs P2GPR:$d), (ins P2GPR:$src1, s9imm:$s), "add $d, #$s", [(set P2GPR:$d, (add P2GPR:$src1, imm9:$s))]>;
 
     def ADDXrr  : P2InstCZIDS<0b0001001, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$src1, P2GPR:$s), "addx $d, $s", [(set P2GPR:$d, (add P2GPR:$src1, P2GPR:$s))]>;
-    def ADDXri  : P2InstCZIDS<0b0001001, 0b001, always, (outs P2GPR:$d), (ins P2GPR:$src1, s9imm:$s), "addx $d, #$s", [(set P2GPR:$d, (add P2GPR:$src1, uimm9:$s))]>;
+    def ADDXri  : P2InstCZIDS<0b0001001, 0b001, always, (outs P2GPR:$d), (ins P2GPR:$src1, s9imm:$s), "addx $d, #$s", [(set P2GPR:$d, (add P2GPR:$src1, imm9:$s))]>;
 
     def ADDSrr  : P2InstCZIDS<0b0001010, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$src1, P2GPR:$s), "adds $d, $s", []>;
     def ADDSri  : P2InstCZIDS<0b0001010, 0b001, always, (outs P2GPR:$d), (ins P2GPR:$src1, s9imm:$s), "adds $d, #$s", [(set P2GPR:$d, (add P2GPR:$src1, imm9:$s))]>;
@@ -252,8 +233,8 @@ let DecoderMethod = "DecodeJumpInstruction" in {
 def TJZrr   : P2InstIDS<0b101110010, 0b0, always, (outs), (ins P2GPR:$d, P2GPR:$s), "tjz $d, $s", []>;
 def TJZri   : P2InstIDS<0b101110010, 0b1, always, (outs), (ins P2GPR:$d, jmptarget:$s), "tjz $d, #$s", []>;
 
-def TJNZrr   : P2InstIDS<0b101110011, 0b0, always, (outs), (ins P2GPR:$d, P2GPR:$s), "tjz $d, $s", []>;
-def TJNZri   : P2InstIDS<0b101110011, 0b1, always, (outs), (ins P2GPR:$d, jmptarget:$s), "tjz $d, #$s", []>;
+def TJNZrr   : P2InstIDS<0b101110011, 0b0, always, (outs), (ins P2GPR:$d, P2GPR:$s), "tjnz $d, $s", []>;
+def TJNZri   : P2InstIDS<0b101110011, 0b1, always, (outs), (ins P2GPR:$d, jmptarget:$s), "tjnz $d, #$s", []>;
 
 // Patterns for various branch conditions and types of branch instructions
 // unsigned comparison
@@ -383,37 +364,40 @@ def MOVgtrr     : P2InstCZIDS<0b0110000, 0b000, if_nc_and_nz, (outs P2GPR:$d), (
 def MOVlteri     : P2InstCZIDS<0b0110000, 0b001, if_c_or_z, (outs P2GPR:$d), (ins s9imm:$s), "mov $d, #$s", []>;
 def MOVlterr     : P2InstCZIDS<0b0110000, 0b000, if_c_or_z, (outs P2GPR:$d), (ins P2GPR:$s), "mov $d, $s", []>;
 
-def RDBYTErr    : P2InstCZIDS<0b1010110, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$s), "rdbyte $d, $s", [(set P2GPR:$d, (zextloadi8 P2GPR:$s))]>;
-def RDWORDrr    : P2InstCZIDS<0b1010111, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$s), "rdword $d, $s", [(set P2GPR:$d, (zextloadi16 P2GPR:$s))]>;
-def RDLONGrr    : P2InstCZIDS<0b1011000, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$s), "rdlong $d, $s", [(set P2GPR:$d, (load P2GPR:$s))]>;
+def RDBYTErr    : P2InstCZIDS<0b1010110, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$s), "rdbyte $d, $s", [(set P2GPR:$d, (zextloadi8 addr:$s))]>;
 
-def WRBYTErr    : P2InstLIDS<0b11000100, 0b00, always, (outs), (ins P2GPR:$d, P2GPR:$s), "wrbyte $d, $s", [(truncstorei8 P2GPR:$d, P2GPR:$s)]>;
-def WRBYTEir    : P2InstLIDS<0b11000100, 0b10, always, (outs), (ins s9imm:$d, P2GPR:$s), "wrbyte #$d, $s", [(truncstorei8 imm9:$d, P2GPR:$s)]>;
+def RDWORDrr    : P2InstCZIDS<0b1010111, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$s), "rdword $d, $s", [(set P2GPR:$d, (zextloadi16 addr:$s))]>;
 
-def WRWORDrr    : P2InstLIDS<0b11000101, 0b00, always, (outs), (ins P2GPR:$d, P2GPR:$s), "wrword $d, $s", [(truncstorei16 P2GPR:$d, P2GPR:$s)]>;
-def WRWORDir    : P2InstLIDS<0b11000101, 0b10, always, (outs), (ins s9imm:$d, P2GPR:$s), "wrword #$d, $s", [(truncstorei16 imm9:$d, P2GPR:$s)]>;
+def RDLONGrr    : P2InstCZIDS<0b1011000, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$s), "rdlong $d, $s", [(set P2GPR:$d, (load addr:$s))]>;
 
-def WRLONGri    : P2InstLIDS<0b11000110, 0b01, always, (outs), (ins P2GPR:$d, i32imm:$s), "wrlong $d, $s", [(store P2GPR:$d, imm:$s)]>;
-def WRLONGii    : P2InstLIDS<0b11000110, 0b11, always, (outs), (ins s9imm:$d, i32imm:$s), "wrlong #$d, $s", [(store imm9:$d, imm:$s)]>;
-def WRLONGrr    : P2InstLIDS<0b11000110, 0b00, always, (outs), (ins P2GPR:$d, P2GPR:$s), "wrlong $d, $s", [(store P2GPR:$d, P2GPR:$s)]>;
-def WRLONGir    : P2InstLIDS<0b11000110, 0b10, always, (outs), (ins s9imm:$d, P2GPR:$s), "wrlong #$d, $s", [(store imm9:$d, P2GPR:$s)]>;
+def WRBYTErr    : P2InstLIDS<0b11000100, 0b00, always, (outs), (ins P2GPR:$d, P2GPR:$s), "wrbyte $d, $s", [(truncstorei8 P2GPR:$d, addr:$s)]>;
+def WRBYTEir    : P2InstLIDS<0b11000100, 0b10, always, (outs), (ins s9imm:$d, P2GPR:$s), "wrbyte #$d, $s", [(truncstorei8 imm9:$d, addr:$s)]>;
+
+def WRWORDrr    : P2InstLIDS<0b11000101, 0b00, always, (outs), (ins P2GPR:$d, P2GPR:$s), "wrword $d, $s", [(truncstorei16 P2GPR:$d, addr:$s)]>;
+def WRWORDir    : P2InstLIDS<0b11000101, 0b10, always, (outs), (ins s9imm:$d, P2GPR:$s), "wrword #$d, $s", [(truncstorei16 imm9:$d, addr:$s)]>;
+
+def WRLONGri    : P2InstLIDS<0b11000110, 0b01, always, (outs), (ins P2GPR:$d, s9imm:$s), "wrlong $d, #$s", [(store P2GPR:$d, imm9:$s)]>;
+def WRLONGii    : P2InstLIDS<0b11000110, 0b11, always, (outs), (ins s9imm:$d, s9imm:$s), "wrlong #$d, #$s", [(store imm9:$d, imm9:$s)]>;
+
+def WRLONGrr    : P2InstLIDS<0b11000110, 0b00, always, (outs), (ins P2GPR:$d, P2GPR:$s), "wrlong $d, $s", [(store P2GPR:$d, addr:$s)]>;
+def WRLONGir    : P2InstLIDS<0b11000110, 0b10, always, (outs), (ins s9imm:$d, P2GPR:$s), "wrlong #$d, $s", [(store imm9:$d, addr:$s)]>;
 
 def SETQr       : P2InstLD<0b1101011, 0b000101000, 0b0, always, (outs), (ins P2GPR:$d), "setq $d", []>;
-def SETQi       : P2InstLD<0b1101011, 0b000101000, 0b1, always, (outs), (ins i32imm:$d), "setq #$d", []>;
+def SETQi       : P2InstLD<0b1101011, 0b000101000, 0b1, always, (outs), (ins s9imm:$d), "setq #$d", []>;
 
 def RDLUTrr     : P2InstCZIDS<0b1010101, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$s), "rdlut %d, %s", []>;
-def RDLUTri     : P2InstCZIDS<0b1010101, 0b001, always, (outs P2GPR:$d), (ins i32imm:$s), "rdlut %d, #%s", []>;
+def RDLUTri     : P2InstCZIDS<0b1010101, 0b001, always, (outs P2GPR:$d), (ins s9imm:$s), "rdlut %d, #%s", []>;
 
 def WRLUTrr     : P2InstLIDS<0b11000011, 0b00, always, (outs), (ins P2GPR:$d, P2GPR:$s), "wrlut %d, %s", []>;
-def WRLUTri     : P2InstLIDS<0b11000011, 0b01, always, (outs), (ins P2GPR:$d, i32imm:$s), "wrlut %d, #%s", []>;
-def WRLUTir     : P2InstLIDS<0b11000011, 0b10, always, (outs), (ins i32imm:$d, P2GPR:$s), "wrlut #%d, %s", []>;
-def WRLUTii     : P2InstLIDS<0b11000011, 0b11, always, (outs), (ins i32imm:$d, i32imm:$s), "wrlut #%d, #%s", []>;
+def WRLUTri     : P2InstLIDS<0b11000011, 0b01, always, (outs), (ins P2GPR:$d, s9imm:$s), "wrlut %d, #%s", []>;
+def WRLUTir     : P2InstLIDS<0b11000011, 0b10, always, (outs), (ins s9imm:$d, P2GPR:$s), "wrlut #%d, %s", []>;
+def WRLUTii     : P2InstLIDS<0b11000011, 0b11, always, (outs), (ins s9imm:$d, s9imm:$s), "wrlut #%d, #%s", []>;
 
-def : Pat<(extloadi8 P2GPR:$s), (RDBYTErr P2GPR:$s)>;
-def : Pat<(extloadi16 P2GPR:$s), (RDWORDrr P2GPR:$s)>;
+def : Pat<(extloadi8 addr:$s), (RDBYTErr P2GPR:$s)>;
+def : Pat<(extloadi16 addr:$s), (RDWORDrr P2GPR:$s)>;
 
-def : Pat<(sextloadi8 P2GPR:$s), (SIGNXri (RDBYTErr P2GPR:$s), 7)>;
-def : Pat<(sextloadi16 P2GPR:$s), (SIGNXri (RDWORDrr P2GPR:$s), 15)>;
+def : Pat<(sextloadi8 addr:$s), (SIGNXri (RDBYTErr P2GPR:$s), 7)>;
+def : Pat<(sextloadi16 addr:$s), (SIGNXri (RDWORDrr P2GPR:$s), 15)>;
 
 /*--------------------------------*/
 /* function calling and globals   */
@@ -505,3 +489,5 @@ def FRMIDX      : Pseudo<(outs P2GPR:$dst), (ins P2GPR:$src), "frmidx $dst, $src
 /* Optimization patterns and such */
 /*--------------------------------*/
 
+// convert add -c to sub c
+def : Pat<(add i32:$d, (i32 NegSubInlineConst32:$s)), (SUBri $d, NegSubInlineConst32:$s)>;

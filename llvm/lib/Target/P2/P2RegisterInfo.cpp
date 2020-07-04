@@ -72,26 +72,25 @@ void P2RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int SPA
         errs() << "\nFunction : " << MF.getFunction().getName() << "\n";
         errs() << "<--------->\n" << MI);
 
-    // the final offset will be stack size - frame offset - local area offset (0)
-    int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
-    uint64_t stackSize = MFI.getStackSize();
-    int64_t fi_offset = MFI.getObjectOffset(FrameIndex);
-    int64_t offset = 0;
+    int frame_idx = MI.getOperand(FIOperandNum).getIndex();
+    uint64_t stack_size = MFI.getStackSize();
+    int64_t fi_offset = MFI.getObjectOffset(frame_idx); // offset from the start of the frame (low address)
+    int local_frame_size = MF.getFrameInfo().getLocalFrameSize();
+    int64_t offset = stack_size-fi_offset;
 
-    offset += stackSize - fi_offset;
-    offset += TFI->getOffsetOfLocalArea(); // LOA should be 0 for P2
-
-    assert(offset >= 0 && "Invalid offset"); // offset should be positive or 0
-    LLVM_DEBUG(errs() << "FrameIndex : " << FrameIndex << "\n"
-                        << "stackSize  : " << stackSize << "\n"
+    LLVM_DEBUG(errs() << "frame_idx : " << frame_idx << "\n"
+                        << "stack size  : " << stack_size << "\n"
                         << "fi offset : " << fi_offset << "\n");
+    LLVM_DEBUG(dbgs() << "LocalFrameSize : " << local_frame_size << "\n");
 
     LLVM_DEBUG(errs() << "Offset     : " << offset << "\n" << "<--------->\n");
+
+    assert(offset >= 0 && "Invalid offset"); // offset should be positive or 0
 
     if (MI.getOpcode() == P2::FRMIDX) {
         MI.setDesc(inst_info.get(P2::MOVrr)); // change our psesudo instruction to a mov
         MI.getOperand(FIOperandNum).ChangeToRegister(P2::PTRA, false); // change the abstract frame index register to our real stack pointer register
-        //MI.RemoveOperand(2); // remove the 3rd operand this instruction
+        //MI.getOperand(0).ChangeToRegister(P2::PTRB, false); // I think we can always just use PTRB instead of the assigned reg
 
         Register dst_reg = MI.getOperand(0).getReg();
         II++; // skip forward by 1 instruction
@@ -124,7 +123,11 @@ void P2RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int SPA
                                 .addReg(reg, RegState::Kill)
                                 .addImm(offset); // adjust saved SP by frame index offset
 
+        LLVM_DEBUG((*II).dump(); errs() << "... became ";);
+
         (*II).getOperand(FIOperandNum).ChangeToRegister(reg, false);
+
+        LLVM_DEBUG((*II).dump());
     }
 }
 

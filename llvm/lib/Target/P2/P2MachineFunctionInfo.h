@@ -34,6 +34,9 @@ class P2FunctionInfo : public MachineFunctionInfo {
     /// holds the virtual register into which the sret argument is passed.
     unsigned SRetReturnReg;
 
+    /// index where call saves PC and status word
+    int call_ret_idx;
+
     /// VarArgsFrameIndex - FrameIndex for start of varargs area.
     int VarArgsFrameIndex;
 
@@ -61,6 +64,9 @@ public:
         {}
 
     ~P2FunctionInfo();
+
+    int getCallRetIdx() const { return call_ret_idx; }
+    void setCallRetIdx(int i) { call_ret_idx = i; }
 
     int getVarArgsFrameIndex() const { return VarArgsFrameIndex; }
     void setVarArgsFrameIndex(int Index) { VarArgsFrameIndex = Index; }

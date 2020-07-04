@@ -27,7 +27,8 @@ namespace llvm {
 
     public:
         explicit P2FrameLowering(const P2TargetMachine &TM)
-            : TargetFrameLowering(StackGrowsUp, Align(1), 0), tm(TM) {
+            // local area offset is 4 for saving PC when executing call
+            : TargetFrameLowering(StackGrowsUp, Align(4), 0), tm(TM) {
         }
 
         bool hasFP(const MachineFunction &MF) const override;

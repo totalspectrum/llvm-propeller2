@@ -46,6 +46,26 @@ void uart_str(const char *str) {
     }
 }
 
+void uart_dec(int n) {
+    char tmp[11]; // we'll never have more than 10 digits for a 32 bit number in base 10 (including negative), plus 1 for 0 termination
+    int i = 10;
+    // bool is_neg = false;
+    // if (n < 0) {
+    //     n = -n;
+    //     is_neg = true;
+    // }
+
+    tmp[i--] = 0; // 0 terminate the string
+    // while (n != 0) {
+    //     tmp[i--] = n % 10;
+    //     n = n/10;
+    // }
+
+    if (is_neg) tmp[i] = '-';
+
+    uart_str(&tmp[i]);
+}
+
 int main() {
 
     clkset(_SETFREQ, _CLOCKFREQ);
@@ -59,6 +79,7 @@ int main() {
     cognew(blink, (int)&led2, blink2_stack);
 
     uart_str("Hello World!");
+    uart_dec(10);
 
     while(1);
 

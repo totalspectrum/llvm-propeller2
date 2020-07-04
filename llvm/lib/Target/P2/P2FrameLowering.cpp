@@ -35,18 +35,19 @@ Selection will generate FRMIDX pseudo instructions that will be lowered in regis
 current stack pointer (sp) by the frame index offset. The callee will not save any regsiters it uses. The data in the stack frame
 will be organized as follows:
 
-        free stack space (callee stack space)
-SP      ------------------
-SP-4    local variables
-...
-        ------------------
-        function arguments (vargs or > 4 registers)
-        ------------------
-        function return
-        values
-SP -    ------------------
-size
-        caller's stack frame
+SP ----------> ----------------- (3)
+                local variables
+                ...
+               ----------------- (2)
+                return address (pushed automatically)
+               ----------------- (1)
+                arguments into function
+                ...
+SP (previous)  -----------------
+
+Here's the ordering of sp adjustment: when calling, SP (previous) is adjusted for arguments (1). The function is called and return address
+(and status word) is pushed onto the stack with the call (2). The function then allocates space it needs to saving registers, and local
+variables (3). SP now becomes SP (previous) when getting ready to call another function.
 
 */
 
@@ -80,6 +81,7 @@ void P2FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) 
     MachineModuleInfo &MMI = MF.getMMI();
     const P2InstrInfo *TII = MF.getSubtarget<P2Subtarget>().getInstrInfo();
     MachineBasicBlock::iterator MBBI = MBB.begin();
+    P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
 
     // Debug location must be unknown since the first debug location is used
     // to determine the end of the prologue.
@@ -88,10 +90,9 @@ void P2FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) 
     //const std::vector<CalleeSavedInfo> &CSI = MFI.getCalleeSavedInfo();
     //P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
 
-    LLVM_DEBUG(errs() << "\n");
-
-    // reserve the existing stack size + the callee saved frame size
-    uint64_t StackSize = MFI.getStackSize();
+    // the stack gets preallocated for incoming arguments + 4 bytes for the PC/SW, so don't allocate that in the
+    // prologue
+    uint64_t StackSize = MFI.getStackSize() - 4 - P2FI->getIncomingArgSize();
     LLVM_DEBUG(errs() << "Allocating " << StackSize << " bytes for stack\n");
 
     // No need to allocate space on the stack.
@@ -106,12 +107,12 @@ void P2FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) 
 void P2FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const {
     LLVM_DEBUG(dbgs() << "Emit Epilogue: " << MF.getName() << "\n");
     MachineBasicBlock::iterator MBBI = MBB.getLastNonDebugInstr();
-    MachineFrameInfo *MFI = &MF.getFrameInfo();
+    const MachineFrameInfo &MFI = MF.getFrameInfo();
+    P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
 
     const P2InstrInfo *TII = MF.getSubtarget<P2Subtarget>().getInstrInfo();
 
-    // Get the number of bytes from FrameInfo
-    uint64_t StackSize = MFI->getStackSize();
+    uint64_t StackSize = MFI.getStackSize() - 4 - P2FI->getIncomingArgSize();;
 
     if (StackSize == 0) {
         LLVM_DEBUG(errs() << "No need to de-allocate stack space\n");
@@ -153,7 +154,7 @@ bool P2FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, MachineB
         const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
         TII.storeRegToStackSlot(MBB, MI, Reg, false, CSI[i-1].getFrameIdx(), RC, TRI);
 
-        LLVM_DEBUG(errs() << "--- spilling " << Reg << " to " << CSI[i-1].getFrameIdx() << "\n");
+        LLVM_DEBUG(errs() << "--- spilling " << Reg << " to index " << CSI[i-1].getFrameIdx() << "\n");
     }
 
 
