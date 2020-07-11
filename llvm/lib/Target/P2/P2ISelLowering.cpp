@@ -83,12 +83,14 @@ P2TargetLowering::P2TargetLowering(const P2TargetMachine &TM) : TargetLowering(T
     // See https://llvm.org/doxygen/TargetLowering_8h_source.html#l00192 for the various action
     setOperationAction(ISD::GlobalAddress, MVT::i32, Custom);
 
+    setOperationAction(ISD::MULHS, MVT::i32, Expand);
+    setOperationAction(ISD::MULHU, MVT::i32, Expand);
+
     setOperationAction(ISD::VASTART, MVT::Other, Custom);
     setOperationAction(ISD::VAARG, MVT::Other, Custom);
     setOperationAction(ISD::VACOPY, MVT::Other, Expand);
     setOperationAction(ISD::VAEND, MVT::Other, Expand);
 
-    // Use the default for now
     setOperationAction(ISD::STACKSAVE, MVT::Other, Expand);
     setOperationAction(ISD::STACKRESTORE, MVT::Other, Expand);
 

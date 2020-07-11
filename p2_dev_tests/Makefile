@@ -6,7 +6,7 @@ LOAD = loadp2
 TARGET = test8
 OBJDIR = build
 
-CFLAGS = -ffunction-sections --target=p2 -I./p2lib
+CFLAGS = -Os -ffunction-sections -fdata-sections --target=p2 -I./p2lib
 LFLAGS = -Tp2.ld
 LOADFLAGS = -v -ZERO -b 230400 -t
 
@@ -22,13 +22,13 @@ $(OBJDIR)/$(TARGET).elf: $(OBJDIR)/$(TARGET).o $(OBJDIR)/propeller2.o $(OBJDIR)/
 		$(LD) $(LFLAGS) -o $@ $^
 
 $(OBJDIR)/$(TARGET).o: $(TARGET).cpp p2lib/propeller2.h
-		$(CC) $(CFLAGS) -o $@ -c $< #-mllvm -debug --debug-only=p2-isel,isel,p2-reg-info
+		$(CC) $(CFLAGS) -o $@ -c $< #-mllvm -debug #--debug-only=p2-isel,isel,p2-reg-info
 
 $(OBJDIR)/propeller2.o: p2lib/propeller2.c p2lib/propeller2.h
-		$(CC) $(CFLAGS) -o $@ -c $< #-mllvm -debug #--debug-only=p2-asm-parser,asm-parser
+		$(CC) $(CFLAGS) -o $@ -c $< #-mllvm --debug-only=p2-frame-lower
 
 $(OBJDIR)/crt0.o: p2lib/crt0.c
-		$(CC) $(CFLAGS) -o $@ -c $<
+		$(CC) $(CFLAGS) -o $@ -c $< #-mllvm -debug
 
 load:
 	$(LOAD) $(LOADFLAGS) $(OBJDIR)/$(TARGET).elf

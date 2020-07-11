@@ -42,7 +42,7 @@ def s9imm : Operand<i32>; // 9 bit immediate
 
 def imm9 : PatLeaf<(i32 imm), [{ // select this leaf when the immediate is between 0 and 2^9
     int32_t v = N->getZExtValue();
-    return (v > 0) && (v < (1 << 9));
+    return (v >= 0) && (v < (1 << 9));
 }]>;
 
 def P2MemAsmOperand : AsmOperandClass {

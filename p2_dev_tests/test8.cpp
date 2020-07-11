@@ -20,7 +20,10 @@ struct led_mb_t {
     int delay;
 };
 
-int uart_clock_per_bits;
+volatile int uart_clock_per_bits;
+
+void uart_str(const char *str) __attribute__((noinline));
+void uart_dec(int n) __attribute__((noinline));
 
 void blink(void *par) {
     led_mb_t *led = (led_mb_t*)par;
@@ -49,37 +52,40 @@ void uart_str(const char *str) {
 void uart_dec(int n) {
     char tmp[11]; // we'll never have more than 10 digits for a 32 bit number in base 10 (including negative), plus 1 for 0 termination
     int i = 10;
-    // bool is_neg = false;
-    // if (n < 0) {
-    //     n = -n;
-    //     is_neg = true;
-    // }
+    bool is_neg = false;
+    if (n < 0) {
+        n = -n;
+        is_neg = true;
+    }
 
     tmp[i--] = 0; // 0 terminate the string
-    // while (n != 0) {
-    //     tmp[i--] = n % 10;
-    //     n = n/10;
-    // }
+    do {
+        tmp[i--] = '0' + (n % 10);
+        n = n/10;
+    } while (n != 0);
 
-    if (is_neg) tmp[i] = '-';
-
-    uart_str(&tmp[i]);
+    if (is_neg) tmp[i--] = '-';
+    uart_str(&tmp[i+1]);
 }
+
+//led_mb_t led1;
 
 int main() {
 
     clkset(_SETFREQ, _CLOCKFREQ);
 
+    //waitx(_CLOCKFREQ/10);
+
     uart_clock_per_bits = uart_init(RX_PIN, TX_PIN, 230400);
 
+    uart_str("Hello World!\n");
     led_mb_t led1 = {56, _CLOCKFREQ};
     led_mb_t led2 = {58, _CLOCKFREQ/2};
 
     cognew(blink, (int)&led1, blink1_stack);
     cognew(blink, (int)&led2, blink2_stack);
 
-    uart_str("Hello World!");
-    uart_dec(10);
+    uart_dec(_clkfreq);
 
     while(1);
 

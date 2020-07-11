@@ -53,6 +53,7 @@ BitVector P2RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
     Reserved.set(P2::DIRB);
     Reserved.set(P2::QX);
     Reserved.set(P2::QY);
+    Reserved.set(P2::R15); // reserve R15 since it's the one used for returns
     return Reserved;
 }
 

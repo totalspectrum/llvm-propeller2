@@ -124,14 +124,13 @@ void P2FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) 
 }
 
 void P2FrameLowering::determineCalleeSaves(MachineFunction &MF, BitVector &SavedRegs, RegScavenger *RS) const {
+    LLVM_DEBUG(errs() << "=== Function: " << MF.getName() << " ===\n");
+    LLVM_DEBUG(errs() << "Determining callee saves\n");
     TargetFrameLowering::determineCalleeSaves(MF, SavedRegs, RS);
 }
 
 bool P2FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
                                                 ArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const {
-
-    LLVM_DEBUG(errs() << "Spilling callee saves\n");
-    LLVM_DEBUG(errs() << "*** THIS CODE HAS NOT BEEN TESTED ***\n");
 
     unsigned CalleeFrameSize = 0;
     DebugLoc DL = MBB.findDebugLoc(MI);
@@ -139,6 +138,10 @@ bool P2FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, MachineB
     const P2Subtarget &STI = MF.getSubtarget<P2Subtarget>();
     const TargetInstrInfo &TII = *STI.getInstrInfo();
     P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
+
+    LLVM_DEBUG(errs() << "=== Function: " << MF.getName() << " ===\n");
+    LLVM_DEBUG(errs() << "Spilling callee saves\n");
+    LLVM_DEBUG(errs() << "*** THIS CODE HAS NOT BEEN TESTED ***\n");
 
     for (unsigned i = CSI.size(); i != 0; --i) {
         unsigned Reg = CSI[i-1].getReg();
@@ -157,24 +160,30 @@ bool P2FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, MachineB
         LLVM_DEBUG(errs() << "--- spilling " << Reg << " to index " << CSI[i-1].getFrameIdx() << "\n");
     }
 
-
-
     return true;
 }
 
 bool P2FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
                                                 MutableArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const {
 
-    LLVM_DEBUG(errs() << "Restore CSRs\n");
-
     MachineFunction &MF = *MBB.getParent();
     const P2Subtarget &STI = MF.getSubtarget<P2Subtarget>();
     const TargetInstrInfo &TII = *STI.getInstrInfo();
+
+    LLVM_DEBUG(errs() << "=== Function: " << MF.getName() << " ===\n");
+
+    LLVM_DEBUG(errs() << "Restore CSRs\n");
+    if (CSI.empty()) {
+        LLVM_DEBUG(errs() << "--- nothing to restore\n");
+        return false;
+    }
 
     for (unsigned i = CSI.size(); i != 0; --i) {
         unsigned Reg = CSI[i-1].getReg();
         const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
         TII.loadRegFromStackSlot(MBB, MI, Reg, CSI[i-1].getFrameIdx(), RC, TRI);
+
+        LLVM_DEBUG(errs() << "--- restoring " << Reg << " from index " << CSI[i-1].getFrameIdx() << "\n");
     }
 
     LLVM_DEBUG(errs() << "\n");

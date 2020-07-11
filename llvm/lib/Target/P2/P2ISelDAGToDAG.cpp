@@ -47,7 +47,7 @@ void P2DAGToDAGISel::selectMultiplication(SDNode *N) {
 
     assert(vt == MVT::i32 && "unexpected value type");
     bool isSigned = N->getOpcode() == ISD::SMUL_LOHI;
-    unsigned op = isSigned ? P2::QMULrr : P2::QMULrr; // FIXME: replace with signed multiplication node
+    unsigned op = isSigned ? P2::QMULrr : P2::QMULrr; // FIXME: replace with signed multiplication node (which will be a pseudo maybe?)
 
     SDValue lhs = N->getOperand(0);
     SDValue rhs = N->getOperand(1);
@@ -161,7 +161,6 @@ void P2DAGToDAGISel::Select(SDNode *N) {
 
         // Mul with two results
         case ISD::SMUL_LOHI:
-            llvm_unreachable("DAGToDAG: no signed multiplication implementation yet");
         case ISD::UMUL_LOHI: {
             selectMultiplication(N);
             return;

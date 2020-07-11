@@ -1,6 +1,10 @@
-ENTRY(_start)
-SECTIONS
-{
+ENTRY(_entry)
+SECTIONS {
+    . = 0x00000;
+    .text : {
+        *(.text._entry);
+    }
+
     . = 0x00100;
     .text : {
         *(.text._start);
