@@ -37,7 +37,10 @@ class P2FunctionInfo : public MachineFunctionInfo {
     /// index where call saves PC and status word
     int call_ret_idx;
 
-    /// VarArgsFrameIndex - FrameIndex for start of varargs area.
+    /// VarArgsFrameOffset - offset for start of varargs area.
+    int VarArgsFrameOffset;
+
+    /// VarArgsFrameIndex - index for start of varargs area.
     int VarArgsFrameIndex;
 
     /// True if function has a byval argument.
@@ -54,10 +57,10 @@ class P2FunctionInfo : public MachineFunctionInfo {
     unsigned MaxCallFrameSize;
 
 public:
-    //P2FunctionInfo(MachineFunction& MF) : MF(MF), VarArgsFrameIndex(0), MaxCallFrameSize(0) {}
     P2FunctionInfo(MachineFunction &MF)
         : MF(MF),
         SRetReturnReg(0),
+        VarArgsFrameOffset(0),
         VarArgsFrameIndex(0),
         EmitNOAT(false),
         MaxCallFrameSize(0)
@@ -68,8 +71,11 @@ public:
     int getCallRetIdx() const { return call_ret_idx; }
     void setCallRetIdx(int i) { call_ret_idx = i; }
 
+    int getVarArgsFrameOffset() const { return VarArgsFrameOffset; }
+    void setVarArgsFrameOffset(int off) { VarArgsFrameOffset = off; }
+
     int getVarArgsFrameIndex() const { return VarArgsFrameIndex; }
-    void setVarArgsFrameIndex(int Index) { VarArgsFrameIndex = Index; }
+    void setVarArgsFrameIndex(int idx) { VarArgsFrameIndex = idx; }
 
     unsigned getSRetReturnReg() const { return SRetReturnReg; }
     void setSRetReturnReg(unsigned Reg) { SRetReturnReg = Reg; }

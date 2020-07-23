@@ -3,10 +3,10 @@ CC = $(LLVM)/bin/clang
 LD = $(LLVM)/bin/ld.lld
 LOAD = loadp2
 
-TARGET = test8
+TARGET = test10
 OBJDIR = build
 
-CFLAGS = -Os -ffunction-sections -fdata-sections --target=p2 -I./p2lib
+CFLAGS = -O1 -ffunction-sections -fdata-sections --target=p2 -I./p2lib
 LFLAGS = -Tp2.ld
 LOADFLAGS = -v -ZERO -b 230400 -t
 
@@ -22,7 +22,7 @@ $(OBJDIR)/$(TARGET).elf: $(OBJDIR)/$(TARGET).o $(OBJDIR)/propeller2.o $(OBJDIR)/
 		$(LD) $(LFLAGS) -o $@ $^
 
 $(OBJDIR)/$(TARGET).o: $(TARGET).cpp p2lib/propeller2.h
-		$(CC) $(CFLAGS) -o $@ -c $< #-mllvm -debug #--debug-only=p2-isel,isel,p2-reg-info
+		$(CC) $(CFLAGS) -o $@ -c $< #-mllvm --debug-only=p2-isel-lower,p2-frame-lower
 
 $(OBJDIR)/propeller2.o: p2lib/propeller2.c p2lib/propeller2.h
 		$(CC) $(CFLAGS) -o $@ -c $< #-mllvm --debug-only=p2-frame-lower

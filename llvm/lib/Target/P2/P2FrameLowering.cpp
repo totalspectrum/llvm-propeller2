@@ -41,7 +41,9 @@ SP ----------> ----------------- (3)
                ----------------- (2)
                 return address (pushed automatically)
                ----------------- (1)
-                arguments into function
+                arguments into function (descending).
+                formal arguments come first (highest in the stack)
+                followed by variable argument (last var arg is lowest in the stack)
                 ...
 SP (previous)  -----------------
 
@@ -78,7 +80,7 @@ bool P2FrameLowering::hasFP(const MachineFunction &MF) const {
 void P2FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const {
     LLVM_DEBUG(dbgs() << "Emit Prologue: " << MF.getName() << "\n");
 
-    MachineModuleInfo &MMI = MF.getMMI();
+    //MachineModuleInfo &MMI = MF.getMMI();
     const P2InstrInfo *TII = MF.getSubtarget<P2Subtarget>().getInstrInfo();
     MachineBasicBlock::iterator MBBI = MBB.begin();
     P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
@@ -89,6 +91,14 @@ void P2FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) 
     const MachineFrameInfo &MFI = MF.getFrameInfo();
     //const std::vector<CalleeSavedInfo> &CSI = MFI.getCalleeSavedInfo();
     //P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
+
+    // unsigned var_args_bytes = 0;
+    // if (MF.getFunction().isVarArg()) {
+    //     // Add in the varargs area here first.
+    //     LLVM_DEBUG(dbgs() << "Varargs: ");
+    //     var_args_bytes = MFI.getObjectSize(P2FI->getVarArgsFrameIndex());
+    //     LLVM_DEBUG(errs() << " bytes to adjust: " << var_args_bytes << "\n");
+    // }
 
     // the stack gets preallocated for incoming arguments + 4 bytes for the PC/SW, so don't allocate that in the
     // prologue
@@ -112,7 +122,15 @@ void P2FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) 
 
     const P2InstrInfo *TII = MF.getSubtarget<P2Subtarget>().getInstrInfo();
 
-    uint64_t StackSize = MFI.getStackSize() - 4 - P2FI->getIncomingArgSize();;
+    // unsigned var_args_bytes = 0;
+    // if (MF.getFunction().isVarArg()) {
+    //     // Add in the varargs area here first.
+    //     LLVM_DEBUG(dbgs() << "Varargs\n");
+    //     var_args_bytes = MFI.getObjectSize(P2FI->getVarArgsFrameIndex());
+    //     LLVM_DEBUG(errs() << " bytes to adjust: " << var_args_bytes << "\n");
+    // }
+
+    uint64_t StackSize = MFI.getStackSize() - 4 - P2FI->getIncomingArgSize();
 
     if (StackSize == 0) {
         LLVM_DEBUG(errs() << "No need to de-allocate stack space\n");
@@ -131,6 +149,7 @@ void P2FrameLowering::determineCalleeSaves(MachineFunction &MF, BitVector &Saved
 
 bool P2FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
                                                 ArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const {
+    // TODO: change this to use PUSHA instead to make it 1 instruction instead of 3.
 
     unsigned CalleeFrameSize = 0;
     DebugLoc DL = MBB.findDebugLoc(MI);
@@ -166,6 +185,7 @@ bool P2FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, MachineB
 bool P2FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
                                                 MutableArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const {
 
+    // TODO: change this to use POPA to use 1 instruction instead of 3
     MachineFunction &MF = *MBB.getParent();
     const P2Subtarget &STI = MF.getSubtarget<P2Subtarget>();
     const TargetInstrInfo &TII = *STI.getInstrInfo();

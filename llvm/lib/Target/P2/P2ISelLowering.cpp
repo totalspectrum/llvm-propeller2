@@ -111,16 +111,17 @@ SDValue P2TargetLowering::lowerGlobalAddress(SDValue Op, SelectionDAG &DAG) cons
 }
 
 SDValue P2TargetLowering::lowerVASTART(SDValue Op, SelectionDAG &DAG) const {
-    MachineFunction &MF = DAG.getMachineFunction();
-    P2FunctionInfo *FuncInfo = MF.getInfo<P2FunctionInfo>();
-
-    SDLoc DL = SDLoc(Op);
-    SDValue FI = DAG.getFrameIndex(FuncInfo->getVarArgsFrameIndex(), getPointerTy(MF.getDataLayout()));
-
-    // vastart just stores the address of the VarArgsFrameIndex slot into the
-    // memory location argument.
+    const MachineFunction &MF = DAG.getMachineFunction();
+    const P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
     const Value *SV = cast<SrcValueSDNode>(Op.getOperand(2))->getValue();
-    return DAG.getStore(Op.getOperand(0), DL, FI, Op.getOperand(1), MachinePointerInfo(SV));
+    auto DL = DAG.getDataLayout();
+    SDLoc dl(Op);
+
+    // Vastart just stores the address of the VarArgsFrameIndex slot into the
+    // memory location argument.
+    SDValue FI = DAG.getFrameIndex(P2FI->getVarArgsFrameIndex(), getPointerTy(DL));
+
+    return DAG.getStore(Op.getOperand(0), dl, FI, Op.getOperand(1), MachinePointerInfo(SV), 0);
 }
 
 SDValue P2TargetLowering::lowerVAARG(SDValue Op, SelectionDAG &DAG) const {
@@ -130,20 +131,17 @@ SDValue P2TargetLowering::lowerVAARG(SDValue Op, SelectionDAG &DAG) const {
     SDValue VAListPtr = Node->getOperand(1);
     const Value *SV = cast<SrcValueSDNode>(Node->getOperand(2))->getValue();
     SDLoc DL(Node);
+    EVT vt = VAListPtr.getValueType();
 
-    SDValue VAListLoad = DAG.getLoad(getPointerTy(DAG.getDataLayout()), DL, Chain, VAListPtr, MachinePointerInfo(SV));
-    SDValue VAList = VAListLoad;
+    SDValue VAList = DAG.getLoad(vt, DL, Chain, VAListPtr, MachinePointerInfo(SV));
 
-    // Decrement the pointer, VAList, to the next vaarg.
-    auto &TD = DAG.getDataLayout();
-    unsigned ArgSizeInBytes = TD.getTypeAllocSize(VT.getTypeForEVT(*DAG.getContext()));
-    SDValue sub = DAG.getNode(ISD::SUB, DL, VAList.getValueType(), VAList, DAG.getConstant(4, DL, VAList.getValueType()));
+    // decrement the pointer, VAList, to the next vaarg,
+    // store the decremented VAList to the legalized pointer,
+    // and load the actual argument out of the pointer VAList
+    SDValue adj = SDValue(DAG.getMachineNode(P2::SUBri, DL, vt, VAList, DAG.getIntPtrConstant(VT.getSizeInBits()/8, DL, true)), 0);
+    Chain = DAG.getStore(VAList.getValue(1), DL, adj, VAListPtr, MachinePointerInfo(SV));
 
-    // Store the incremented VAList to the legalized pointer
-    Chain = DAG.getStore(VAListLoad.getValue(1), DL, sub, VAListPtr, MachinePointerInfo(SV));
-
-    // Load the actual argument out of the pointer VAList
-    return DAG.getLoad(VT, DL, Chain, VAList, MachinePointerInfo(SV));
+    return DAG.getLoad(VT, DL, Chain, VAList, MachinePointerInfo(), std::min(vt.getSizeInBits(), VT.getSizeInBits())/8);
 }
 
 #include "P2GenCallingConv.inc"
@@ -203,7 +201,7 @@ SDValue P2TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     // Get a count of how many bytes are to be pushed on the stack.
     unsigned NextStackOffset = CCInfo.getNextStackOffset();
 
-    LLVM_DEBUG(errs() << "Calling function: " << MF.getName() << ". Next stack offset is " << NextStackOffset << "\n");
+    LLVM_DEBUG(errs() << "Caller: " << MF.getName() << ". Next stack offset is " << NextStackOffset << "\n");
 
     // Chain is the output chain of the last Load/Store or CopyToReg node.
     unsigned StackAlignment = TFL->getStackAlignment();
@@ -223,12 +221,11 @@ SDValue P2TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 
     // iterate over the argument locations.
     // at each location, push a reg/value pair onto RegsToPass, promoting the type if needed.
-    // if the location is a memory location,
+    // if the location is a memory location, load it from memory
     for (unsigned i = 0; i < ArgLocs.size(); i++) {
         SDValue Arg = OutVals[i];
         CCValAssign &VA = ArgLocs[i];
         MVT LocVT = VA.getLocVT();
-        //ISD::ArgFlagsTy Flags = Outs[i].Flags;
 
         // Promote the value if needed.
         switch (VA.getLocInfo()) {
@@ -255,9 +252,11 @@ SDValue P2TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
             assert(VA.isMemLoc());
 
             SDValue PtrOff;
-            int off = NextStackOffset-(VA.getLocMemOffset());
+            //int off = NextStackOffset-(VA.getLocMemOffset());
+            int off = VA.getLocMemOffset()+4;
             LLVM_DEBUG(errs() << "stack offset for argument: " << off << "\n");
-            PtrOff = DAG.getNode(ISD::SUB, DL, getPointerTy(DAG.getDataLayout()), StackPtr, DAG.getIntPtrConstant(off, DL));
+            EVT vt = getPointerTy(DAG.getDataLayout());
+            PtrOff = SDValue(DAG.getMachineNode(P2::SUBri, DL, vt, StackPtr, DAG.getConstant(off, DL, MVT::i32, true)), 0);
 
             SDValue mem_op;
             ISD::ArgFlagsTy Flags = Outs[i].Flags;
@@ -382,24 +381,26 @@ SDValue P2TargetLowering::LowerFormalArguments(SDValue Chain,
     SmallVector<CCValAssign, 16> ArgLocs;
     CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), ArgLocs, *DAG.getContext());
 
-    LLVM_DEBUG(errs() << " next stack offset: " << CCInfo.getNextStackOffset() << "\n");
-    int fi;
-
     if (IsVarArg) {
         CCInfo.AnalyzeFormalArguments(Ins, CC_P2_Vararg);
-        fi = MFI->CreateFixedObject(4, CCInfo.getNextStackOffset(), true);
-        P2FI->setVarArgsFrameIndex(fi);
     } else {
         CCInfo.AnalyzeFormalArguments(Ins, CC_P2);
     }
 
-    fi = MFI->CreateFixedObject(4, CCInfo.getNextStackOffset(), true); // this frame index is where the call saved pc
-    MFI->mapLocalFrameObject(fi, MFI->getObjectOffset(fi)); // sets it as pre-allocated
+    // creat a frame index for the PC saved by CALL
+    int stack_size = CCInfo.getNextStackOffset();
+    LLVM_DEBUG(errs() << " - next stack offset: " << stack_size << "\n");
+
+    int fi = MFI->CreateFixedObject(4, stack_size, true); // frame index for where CALL saved the PC
+    MFI->mapLocalFrameObject(fi, MFI->getObjectOffset(fi)); // sets it as pre-allocated, I think
     P2FI->setCallRetIdx(fi);
 
-    P2FI->setFormalArgInfo(CCInfo.getNextStackOffset(), CCInfo.getInRegsParamsCount() > 0);
+    // this will hold the memory offset of the last argument for use by var args, if needed
+    int last_formal_arg_offset = 0;
 
-    const Function &Func = DAG.getMachineFunction().getFunction();
+    // save arg info for future use
+    P2FI->setFormalArgInfo(CCInfo.getNextStackOffset(), CCInfo.getInRegsParamsCount() > 0);
+    //const Function &Func = DAG.getMachineFunction().getFunction();
 
     CCInfo.rewindByValRegsInfo();
 
@@ -413,6 +414,8 @@ SDValue P2TargetLowering::LowerFormalArguments(SDValue Chain,
             LLVM_DEBUG(errs() << "have a byval argument\n");
             assert(Flags.getByValSize() && "ByVal args of size 0 should have been ignored by front-end.");
         }
+
+        LLVM_DEBUG(errs() << " - Loading argument: " << i << "\n");
 
         // Arguments stored on registers
         if (VA.isRegLoc()) {
@@ -451,29 +454,34 @@ SDValue P2TargetLowering::LowerFormalArguments(SDValue Chain,
             ISD::ArgFlagsTy Flags = Ins[i].Flags;
 
             if (Flags.isByVal()) {
-                int FI = MFI->CreateFixedObject(Flags.getByValSize(), VA.getLocMemOffset(), true);
-                ArgValue = DAG.getFrameIndex(FI, getPointerTy(DAG.getDataLayout()));
+                fi = MFI->CreateFixedObject(Flags.getByValSize(), VA.getLocMemOffset(), true);
+                ArgValue = DAG.getFrameIndex(fi, getPointerTy(DAG.getDataLayout()));
             } else {
                 // Load the argument to a virtual register
                 unsigned ObjSize = VA.getLocVT().getStoreSize();
                 assert((ObjSize <= 4) && "Unhandled argument--object size > stack slot size (4 bytes)");
-                LLVM_DEBUG(errs() << "location offset: " << VA.getLocMemOffset() << "\n");
+                LLVM_DEBUG(errs() << " - location offset: " << VA.getLocMemOffset() << "\n");
 
                 // Create the frame index object for this incoming parameter
-                // we need to add 1 longs:
-                // - 1 for the current pointer pointing to an empty slot.
-                int FI = MFI->CreateFixedObject(ObjSize, VA.getLocMemOffset(), true);
+                last_formal_arg_offset = stack_size-VA.getLocMemOffset()-4;
+                fi = MFI->CreateFixedObject(ObjSize, last_formal_arg_offset, true);
 
-                LLVM_DEBUG(errs() << "Loading argument from index " << FI << "\n");
+                LLVM_DEBUG(errs() << " - Loading argument from index " << fi << "\n");
 
                 // Create the SelectionDAG nodes corresponding to a load from this parameter
-                SDValue FIN = DAG.getFrameIndex(FI, MVT::i32);
-                ArgValue = DAG.getLoad(VA.getLocVT(), DL, Chain, FIN, MachinePointerInfo::getFixedStack(MF, FI));
+                SDValue FIN = DAG.getFrameIndex(fi, MVT::i32);
+                ArgValue = DAG.getLoad(VA.getLocVT(), DL, Chain, FIN, MachinePointerInfo::getFixedStack(MF, fi));
             }
 
             InVals.push_back(ArgValue);
             OutChains.push_back(ArgValue.getValue(1));
         }
+    }
+
+    if (IsVarArg) {
+        //fi = MFI->CreateFixedObject(4, CCInfo.getNextStackOffset(), true); // frame index for var arg pointer
+        //P2FI->setVarArgsFrameOffset(CCInfo.getNextStackOffset()); // TODO: make this work
+        P2FI->setVarArgsFrameIndex(MFI->CreateFixedObject(4, last_formal_arg_offset-4, true));
     }
 
     for (unsigned i = 0; i < ArgLocs.size(); i++) {
@@ -520,33 +528,6 @@ SDValue P2TargetLowering::LowerReturn(SDValue Chain,
 
     SDValue Flag;
     SmallVector<SDValue, 4> RetOps(1, Chain);
-    // SmallVector<SDValue, 4> MemOpChains;
-
-    // Handle return values that must be copied to memory.
-    // for (unsigned i = 0; i != RVLocs.size(); ++i) {
-    //     CCValAssign &VA = RVLocs[i];
-    //     if (VA.isRegLoc())
-    //         continue;
-
-    //     assert(VA.isMemLoc());
-    //     if (IsVarArg) {
-    //         report_fatal_error("Can't return value from vararg function in memory");
-    //     }
-
-    //     int Offset = VA.getLocMemOffset();
-    //     unsigned ObjSize = VA.getLocVT().getStoreSize();
-    //     // Create the frame index object for the memory location.
-    //     int FI = MFI.CreateFixedObject(ObjSize, Offset, false);
-
-    //     // Create a SelectionDAG node corresponding to a store to this memory location.
-    //     SDValue FIN = DAG.getFrameIndex(FI, MVT::i32);
-    //     MemOpChains.push_back(DAG.getStore(Chain, DL, OutVals[i], FIN, MachinePointerInfo::getFixedStack(MF, FI)));
-    // }
-
-    // // Transform all store nodes into one single node because
-    // // all stores are independent of each other.
-    // if (!MemOpChains.empty())
-    //     Chain = DAG.getNode(ISD::TokenFactor, DL, MVT::Other, MemOpChains);
 
     // Copy the result values into the output register.
     for (unsigned i = 0; i != RVLocs.size(); ++i) {

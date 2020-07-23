@@ -86,11 +86,14 @@ def wrlut : PatFrag<(ops node:$val, node:$ptr), (P2WRLUT node:$val, node:$ptr)> 
 /* basic math and logic           */
 /*--------------------------------*/
 
-// place this first so that the below patter matches before the standard addition pattern matches
+// place this first so that the below pattern matches before the standard addition pattern matches
 let Constraints = "$src1 = $d" in {
     def SUBrr   : P2InstCZIDS<0b0001100, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$src1, P2GPR:$s), "sub $d, $s", [(set P2GPR:$d, (sub P2GPR:$src1, P2GPR:$s))]>;
     def SUBri   : P2InstCZIDS<0b0001100, 0b001, always, (outs P2GPR:$d), (ins P2GPR:$src1, s9imm:$s), "sub $d, #$s", [(set P2GPR:$d, (sub P2GPR:$src1, imm9:$s))]>;
 }
+
+// convert add -c to sub c
+def : Pat<(add i32:$d, NegSubInlineConst32:$s), (SUBri $d, NegSubInlineConst32:$s)>;
 
 let Constraints = "$src1 = $d" in {
     def RORrr   : P2InstCZIDS<0b0000000, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$src1, P2GPR:$s), "ror $d, $s", []>;
@@ -488,6 +491,3 @@ def FRMIDX      : Pseudo<(outs P2GPR:$dst), (ins P2GPR:$src), "frmidx $dst, $src
 /*--------------------------------*/
 /* Optimization patterns and such */
 /*--------------------------------*/
-
-// convert add -c to sub c
-def : Pat<(add i32:$d, (i32 NegSubInlineConst32:$s)), (SUBri $d, NegSubInlineConst32:$s)>;
