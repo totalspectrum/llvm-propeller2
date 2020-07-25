@@ -59,36 +59,36 @@ void uart_dec(int n) {
     uart_str(&tmp[i+1]);
 }
 
-// struct led_mb_t {
-//     char pin;
-//     int delay;
-//     unsigned int *stack;
-// };
+struct led_mb_t {
+    char pin;
+    int delay;
+    unsigned int *stack;
+};
 
-// void blink(void *par) {
-//     led_mb_t *led = (led_mb_t*)par;
+void blink(void *par) {
+    led_mb_t *led = (led_mb_t*)par;
 
-//     dirh(led->pin);
+    dirh(led->pin);
 
-//     while(1) {
-//         outl(led->pin);
-//         waitx(led->delay);
-//         outh(led->pin);
-//         waitx(led->delay);
-//     }
-// }
+    while(1) {
+        outl(led->pin);
+        waitx(led->delay);
+        outh(led->pin);
+        waitx(led->delay);
+    }
+}
 
-// void start_blinks(led_mb_t *led, ...) {
-//     va_list args;
-//     va_start(args, led);
+void start_blinks(led_mb_t *led, ...) {
+    va_list args;
+    va_start(args, led);
 
-//     led_mb_t *l = va_arg(args, led_mb_t*);
-//     while(l != 0) {
-//         cognew(blink, (int)l, (unsigned int*)(l->stack));
-//         l = va_arg(args, led_mb_t*);
-//     }
+    led_mb_t *l = led;
+    while(l != 0) {
+        cognew(blink, (int)l, (unsigned int*)(l->stack));
+        l = va_arg(args, led_mb_t*);
+    }
 
-// }
+}
 
 // sum n numbers
 int sum(int n, ...) {
@@ -115,17 +115,14 @@ int main() {
     clkset(_SETFREQ, _CLOCKFREQ);
     uart_clock_per_bits = uart_init(RX_PIN, TX_PIN, 230400);
 
-    dirh(56);
-    outl(56);
-
     uart_str("Variadic function test\n");
 
-    // led_mb_t led1 = {56, 100000000, (unsigned int*)blink1_stack};
-    // led_mb_t led2 = {57, 200000000, (unsigned int*)blink2_stack};
-    // led_mb_t led3 = {56, 300000000, (unsigned int*)blink3_stack};
-    // led_mb_t led4 = {57, 400000000, (unsigned int*)blink4_stack};
+    led_mb_t led1 = {56, _CLOCKFREQ, (unsigned int*)blink1_stack};
+    led_mb_t led2 = {57, _CLOCKFREQ/2, (unsigned int*)blink2_stack};
+    led_mb_t led3 = {58, _CLOCKFREQ/3, (unsigned int*)blink3_stack};
+    led_mb_t led4 = {59, _CLOCKFREQ/4, (unsigned int*)blink4_stack};
 
-    // start_blinks(&led1, &led2, &led3, &led4, 0);
+    start_blinks(&led1, &led2, &led3, &led4, 0);
 
     // int y = sumsub(1, 2, 3, 4, 5, 6);
     // uart_dec(y);
@@ -133,11 +130,11 @@ int main() {
 
     int x = sum(5, 10, 20, -1, 34, -24);
     uart_dec(x);
-    uart_str("\n");
+    uart_str("\r\n");
 
     x = sumsub(1, 2, 3, 4, 5, 6);
     uart_dec(x);
-    uart_str("\n");
+    uart_str("\r\n");
 
     //outh(56);
 

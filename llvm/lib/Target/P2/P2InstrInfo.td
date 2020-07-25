@@ -66,12 +66,6 @@ def P2WRLUT  : SDNode<"P2ISD::WRLUT", SDTStore, [SDNPHasChain, SDNPMayStore, SDN
 def P2RET   : SDNode<"P2ISD::RET", SDTNone, [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 def P2CALL  : SDNode<"P2ISD::CALL", SDT_P2Call, [SDNPHasChain, SDNPOutGlue, SDNPOptInGlue, SDNPVariadic]>;
 
-/*
-def P2QMUL  : SDNode<"P2ISD::QMUL", SDT_P2QMUL, [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]>;
-def P2GETQX : SDNode<"P2ISD::GETQX", SDT_P2GETQ, [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]>;
-def P2GETQY : SDNode<"P2ISD::GETQY", SDT_P2GETQ, [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]>;
-*/
-
 def rdlut : PatFrag<(ops node:$ptr), (P2RDLUT node:$ptr)> {
     let IsNonExtLoad = 1;
     let IsUnindexed = 1;
@@ -165,6 +159,7 @@ def NEGri   : P2InstCZIDS<0b0110011, 0b001, always, (outs P2GPR:$d), (ins s9imm:
 
 def ENCODrr : P2InstCZIDS<0b0111100, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$s), "encod $d, $s", []>;
 
+def : Pat<(sext_inreg P2GPR:$d, i1), (SIGNXri P2GPR:$d, 0)>;
 def : Pat<(sext_inreg P2GPR:$d, i8), (SIGNXri P2GPR:$d, 7)>;
 def : Pat<(sext_inreg P2GPR:$d, i16), (SIGNXri P2GPR:$d, 15)>;
 
@@ -188,8 +183,6 @@ let DecoderMethod = "DecodeCordicInstruction" in {
 }
 
 def QUDIV   : Pseudo<(outs P2GPR:$dst), (ins P2GPR:$src1, P2GPR:$src2), "udiv $dst, $src1, $src2", [(set P2GPR:$dst, (udiv P2GPR:$src1, P2GPR:$src2))]>;
-
-def QSREM   : Pseudo<(outs P2GPR:$dst), (ins P2GPR:$src1, P2GPR:$src2), "srem $dst, $src1, $src2", [(set P2GPR:$dst, (srem P2GPR:$src1, P2GPR:$src2))]>;
 def QUREM   : Pseudo<(outs P2GPR:$dst), (ins P2GPR:$src1, P2GPR:$src2), "urem $dst, $src1, $src2", [(set P2GPR:$dst, (urem P2GPR:$src1, P2GPR:$src2))]>;
 
 /*
@@ -221,7 +214,7 @@ let DecoderMethod = "DecodeCmpInstruction" in {
     // dont' have a signed compare with reversed operands, so need to get creative
 }
 
-def JMPr    : P2InstCZD<0b1101011, 0b000101100, 0b00, always, (outs), (ins P2GPR:$d), "jmp $d", []>;
+def JMPr    : P2InstCZD<0b1101011, 0b000101100, 0b00, always, (outs), (ins P2GPR:$d), "jmp $d", [(brind P2GPR:$d)]>;
 
 let DecoderMethod = "DecodeJumpInstruction" in {
     def JMP     : P2BranchInst<(outs), (ins jmptarget:$target), always, [(br bb:$target)]>;
@@ -314,7 +307,6 @@ multiclass sel_cc <CondCode c> {
                         [(set P2GPR:$d, (selectcc P2GPR:$lhs, P2GPR:$rhs, P2GPR:$t, P2GPR:$f, c))]>;
 }
 
-// FIXME: expand the remaining ones
 defm SELECTueq   : sel_cc<SETUEQ>;
 defm SELECTune   : sel_cc<SETUNE>;
 defm SELECTule   : sel_cc<SETULE>;
@@ -425,6 +417,7 @@ let Defs = [PTRA], Uses = [PTRA] in {
 }
 
 def : Pat<(P2GAWrapper tglobaladdr:$addr), (MOVri32 tglobaladdr:$addr)>;
+def : Pat<(P2GAWrapper tjumptable:$addr), (MOVri32 tjumptable:$addr)>;
 def : Pat<(P2CALL (i32 tglobaladdr:$dst)), (CALLAa tglobaladdr:$dst)>;
 def : Pat<(P2CALL (i32 texternalsym:$dst)), (CALLAa texternalsym:$dst)>;
 def : Pat<(P2CALL (i32 P2GPR:$d)), (CALLAr P2GPR:$d)>;

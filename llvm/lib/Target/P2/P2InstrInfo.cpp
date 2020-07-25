@@ -32,11 +32,8 @@ void P2InstrInfo::anchor() {}
 
 P2InstrInfo::P2InstrInfo() : P2GenInstrInfo(P2::ADJCALLSTACKUP, P2::ADJCALLSTACKDOWN), RI() {}
 
-void P2InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
-                                        MachineBasicBlock::iterator MI,
-                                        Register DestReg, int FrameIndex,
-                                        const TargetRegisterClass *RC,
-                                        const TargetRegisterInfo *TRI) const {
+void P2InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register DestReg, int FrameIndex,
+                                        const TargetRegisterClass *RC, const TargetRegisterInfo *TRI) const {
     DebugLoc DL;
     if (MI != MBB.end()) {
         DL = MI->getDebugLoc();
@@ -135,4 +132,184 @@ void P2InstrInfo::adjustStackPtr(unsigned SP, int64_t amount, MachineBasicBlock 
     } else {
         llvm_unreachable("Cannot adjust stack pointer by more than 32 bits (and adjusting by more than 20 bits never makes sense!)");
     }
+}
+
+static bool isCondBranchOpcode(int op) {
+    return
+    (op == P2::JMPeq) ||
+    (op == P2::JMPne) ||
+    (op == P2::JMPlt) ||
+    (op == P2::JMPgte) ||
+    (op == P2::JMPgt) ||
+    (op == P2::JMPlte);
+}
+
+
+/// Analyze the branching code at the end of MBB, returning
+/// true if it cannot be understood (e.g. it's a switch dispatch or isn't
+/// implemented for a target).  Upon success, this returns false and returns
+/// with the following information in various cases:
+///
+/// 1. If this block ends with no branches (it just falls through to its succ)
+///    just return false, leaving TBB/FBB null.
+/// 2. If this block ends with only an unconditional branch, it sets TBB to be
+///    the destination block.
+/// 3. If this block ends with a conditional branch and it falls through to a
+///    successor block, it sets TBB to be the branch destination block and a
+///    list of operands that evaluate the condition. These operands can be
+///    passed to other TargetInstrInfo methods to create new branches.
+/// 4. If this block ends with a conditional branch followed by an
+///    unconditional branch, it returns the 'true' destination in TBB, the
+///    'false' destination in FBB, and a list of operands that evaluate the
+///    condition.  These operands can be passed to other TargetInstrInfo
+///    methods to create new branches.
+///
+/// Note that RemoveBranch and insertBranch must be implemented to support
+/// cases where this method returns success.
+///
+/// If AllowModify is true, then this routine is allowed to modify the basic
+/// block (e.g. delete instructions after the unconditional branch).
+
+// MBB: this machine block
+// TBB: true basic block (where to jump when true)
+// FBB: false basic block (where to jump when false)
+// Cond: list of condition operands
+bool P2InstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&TBB, MachineBasicBlock *&FBB,
+                                   SmallVectorImpl<MachineOperand> &Cond, bool AllowModify) const {
+
+    LLVM_DEBUG(errs() << "Analyze Branch MBB: ");
+    LLVM_DEBUG(MBB.dump());
+    int old_br_code;
+
+    // Start from the bottom of the block and work up, examining the
+    // terminator instructions.
+    MachineBasicBlock::iterator I = MBB.end();
+    while (I != MBB.begin()) {
+        --I;
+        if (I->isDebugInstr()) continue;
+
+        // Working from the bottom, when we see a non-terminator
+        // instruction, we're done.
+        if (!isUnpredicatedTerminator(*I)) break;
+
+        // A terminator that isn't a branch can't easily be handled
+        // by this analysis.
+        if (!I->isBranch()) return true;
+
+        // Cannot handle indirect branches.
+        if (I->getOpcode() == P2::JMPr)
+            return true;
+
+        // Handle unconditional branches.
+        if (I->getOpcode() == P2::JMP) {
+            if (!AllowModify) {
+                TBB = I->getOperand(0).getMBB();
+                continue;
+            }
+
+            // If the block has any instructions after a JMP, delete them.
+            while (std::next(I) != MBB.end()) std::next(I)->eraseFromParent();
+            Cond.clear();
+            FBB = nullptr;
+
+            // Delete the JMP if it's equivalent to a fall-through.
+            if (MBB.isLayoutSuccessor(I->getOperand(0).getMBB())) {
+                TBB = nullptr;
+                I->eraseFromParent();
+                I = MBB.end();
+                continue;
+            }
+
+            // TBB is used to indicate the unconditinal destination.
+            TBB = I->getOperand(0).getMBB();
+            continue;
+        }
+
+        // Handle conditional branches.
+        assert(isCondBranchOpcode(I->getOpcode()) && "Invalid conditional branch");
+        int BranchCode = I->getOpcode();
+
+        // Working from the bottom, handle the first conditional branch.
+        if (Cond.empty()) {
+            FBB = TBB;
+            TBB = I->getOperand(0).getMBB();
+            Cond.push_back(MachineOperand::CreateImm(BranchCode)); // create an immediate with the branch op code
+            Cond.push_back(I->getOperand(1));
+            old_br_code = BranchCode;
+            continue;
+        }
+
+        // Handle subsequent conditional branches. Only handle the case where all
+        // conditional branches branch to the same destination.
+        assert(Cond.size() == 1);
+        assert(TBB);
+
+        // Only handle the case where all conditional branches branch to
+        // the same destination.
+        if (TBB != I->getOperand(0).getMBB()) return true;
+
+        // If the conditions are the same, we can leave them alone.
+        if (old_br_code == BranchCode) continue;
+
+
+        return true;
+    }
+
+    return false;
+}
+
+unsigned P2InstrInfo::insertBranch(MachineBasicBlock &MBB, MachineBasicBlock *TBB, MachineBasicBlock *FBB,
+                                    ArrayRef<MachineOperand> Cond, const DebugLoc &dl, int *BytesAdded) const {
+
+
+    errs() << "Insert Branch MBB: ";
+    MBB.dump();
+
+    // Shouldn't be a fall through.
+    assert(TBB && "insertBranch must not be told to insert a fallthrough");
+    assert((Cond.size() == 2 || Cond.size() == 0) && "P2 branch conditions have one component!");
+    assert(!BytesAdded && "code size not handled");
+
+    if (Cond.empty()) {
+        // Unconditional branch?
+        assert(!FBB && "Unconditional branch with multiple successors!");
+        BuildMI(&MBB, dl, get(P2::JMP)).addMBB(TBB);
+        return 1;
+    }
+
+    // Conditional branch.
+    unsigned Count = 0;
+    BuildMI(&MBB, dl, get(Cond[0].getImm())).addMBB(TBB).add(Cond[1]);
+    ++Count;
+
+    if (FBB) {
+        // Two-way Conditional branch. Insert the second branch.
+        BuildMI(&MBB, dl, get(P2::JMP)).addMBB(FBB);
+        ++Count;
+    }
+
+    return Count;
+}
+
+unsigned P2InstrInfo::removeBranch(MachineBasicBlock &MBB, int *BytesRemoved) const {
+    assert(!BytesRemoved && "code size not handled");
+
+    MachineBasicBlock::iterator I = MBB.end();
+    unsigned Count = 0;
+
+    while (I != MBB.begin()) {
+        --I;
+        if (I->isDebugInstr()) continue;
+
+        if (!isCondBranchOpcode(I->getOpcode()) &&
+            I->getOpcode() != P2::JMPr &&
+            I->getOpcode() != P2::JMP) break;
+
+        // Remove the branch.
+        I->eraseFromParent();
+        I = MBB.end();
+        ++Count;
+    }
+
+    return Count;
 }

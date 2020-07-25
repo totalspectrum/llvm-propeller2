@@ -80,25 +80,10 @@ bool P2FrameLowering::hasFP(const MachineFunction &MF) const {
 void P2FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const {
     LLVM_DEBUG(dbgs() << "Emit Prologue: " << MF.getName() << "\n");
 
-    //MachineModuleInfo &MMI = MF.getMMI();
     const P2InstrInfo *TII = MF.getSubtarget<P2Subtarget>().getInstrInfo();
     MachineBasicBlock::iterator MBBI = MBB.begin();
     P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
-
-    // Debug location must be unknown since the first debug location is used
-    // to determine the end of the prologue.
-    // DebugLoc dl;
     const MachineFrameInfo &MFI = MF.getFrameInfo();
-    //const std::vector<CalleeSavedInfo> &CSI = MFI.getCalleeSavedInfo();
-    //P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
-
-    // unsigned var_args_bytes = 0;
-    // if (MF.getFunction().isVarArg()) {
-    //     // Add in the varargs area here first.
-    //     LLVM_DEBUG(dbgs() << "Varargs: ");
-    //     var_args_bytes = MFI.getObjectSize(P2FI->getVarArgsFrameIndex());
-    //     LLVM_DEBUG(errs() << " bytes to adjust: " << var_args_bytes << "\n");
-    // }
 
     // the stack gets preallocated for incoming arguments + 4 bytes for the PC/SW, so don't allocate that in the
     // prologue
@@ -121,15 +106,6 @@ void P2FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) 
     P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
 
     const P2InstrInfo *TII = MF.getSubtarget<P2Subtarget>().getInstrInfo();
-
-    // unsigned var_args_bytes = 0;
-    // if (MF.getFunction().isVarArg()) {
-    //     // Add in the varargs area here first.
-    //     LLVM_DEBUG(dbgs() << "Varargs\n");
-    //     var_args_bytes = MFI.getObjectSize(P2FI->getVarArgsFrameIndex());
-    //     LLVM_DEBUG(errs() << " bytes to adjust: " << var_args_bytes << "\n");
-    // }
-
     uint64_t StackSize = MFI.getStackSize() - 4 - P2FI->getIncomingArgSize();
 
     if (StackSize == 0) {
@@ -160,7 +136,6 @@ bool P2FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, MachineB
 
     LLVM_DEBUG(errs() << "=== Function: " << MF.getName() << " ===\n");
     LLVM_DEBUG(errs() << "Spilling callee saves\n");
-    LLVM_DEBUG(errs() << "*** THIS CODE HAS NOT BEEN TESTED ***\n");
 
     for (unsigned i = CSI.size(); i != 0; --i) {
         unsigned Reg = CSI[i-1].getReg();

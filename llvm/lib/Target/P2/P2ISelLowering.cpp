@@ -97,6 +97,27 @@ P2TargetLowering::P2TargetLowering(const P2TargetMachine &TM) : TargetLowering(T
     setOperationAction(ISD::SHL_PARTS, MVT::i32, Expand);
     setOperationAction(ISD::SRA_PARTS, MVT::i32, Expand);
     setOperationAction(ISD::SRL_PARTS, MVT::i32, Expand);
+
+    setOperationAction(ISD::SDIV, MVT::i32, LibCall);
+    setOperationAction(ISD::SREM, MVT::i32, LibCall);
+
+    for (MVT VT : MVT::integer_valuetypes()) {
+        setOperationAction(ISD::ATOMIC_SWAP, VT, Expand);
+        setOperationAction(ISD::ATOMIC_CMP_SWAP, VT, Expand);
+        setOperationAction(ISD::ATOMIC_LOAD_NAND, VT, Expand);
+        setOperationAction(ISD::ATOMIC_LOAD_MAX, VT, Expand);
+        setOperationAction(ISD::ATOMIC_LOAD_MIN, VT, Expand);
+        setOperationAction(ISD::ATOMIC_LOAD_UMAX, VT, Expand);
+        setOperationAction(ISD::ATOMIC_LOAD_UMIN, VT, Expand);
+    }
+
+    setOperationAction(ISD::SETCC, MVT::i32, Expand);
+    setOperationAction(ISD::BR_JT, MVT::Other, Expand);
+    setOperationAction(ISD::JumpTable, MVT::i32, Custom);
+    setOperationAction(ISD::BSWAP, MVT::i32, Expand);
+
+    setLibcallName(RTLIB::SDIV_I32, "__sdiv");
+    setLibcallName(RTLIB::SREM_I32, "__srem");
 }
 
 SDValue P2TargetLowering::lowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const {
@@ -144,6 +165,12 @@ SDValue P2TargetLowering::lowerVAARG(SDValue Op, SelectionDAG &DAG) const {
     return DAG.getLoad(VT, DL, Chain, VAList, MachinePointerInfo(), std::min(vt.getSizeInBits(), VT.getSizeInBits())/8);
 }
 
+SDValue P2TargetLowering::lowerJumpTable(SDValue Op, SelectionDAG &DAG) const {
+    auto *N = cast<JumpTableSDNode>(Op);
+    SDValue GA = DAG.getTargetJumpTable(N->getIndex(), MVT::i32);
+    return DAG.getNode(P2ISD::GAWRAPPER, SDLoc(N), MVT::i32, GA);
+}
+
 #include "P2GenCallingConv.inc"
 
 //===----------------------------------------------------------------------===//
@@ -158,6 +185,8 @@ SDValue P2TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
             return lowerVASTART(Op, DAG);
         case ISD::VAARG:
             return lowerVAARG(Op, DAG);
+        case ISD::JumpTable:
+            return lowerJumpTable(Op, DAG);
     }
 
     return SDValue();

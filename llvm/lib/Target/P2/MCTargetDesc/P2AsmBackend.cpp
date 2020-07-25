@@ -109,17 +109,6 @@ const MCFixupKindInfo &P2AsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
     return Infos[Kind - FirstTargetFixupKind];
 }
 
-// bool P2AsmBackend::shouldForceRelocation(const MCAssembler &Asm, const MCFixup &Fixup, const MCValue &Target) {
-//     switch ((unsigned) Fixup.getKind()) {
-//         default:
-//             return false;
-//         // Fixups which should always be recorded as relocations.
-//         case P2::fixup_P2_20:
-//         case P2::fixup_P2_PC20:
-//             return true;
-//     }
-// }
-
 bool P2AsmBackend::writeNopData(raw_ostream &OS, uint64_t Count) const {
     return true;
 }

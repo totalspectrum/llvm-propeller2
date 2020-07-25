@@ -94,6 +94,15 @@ namespace llvm {
                 bool IsPICCall, bool GlobalOrExternal, bool InternalLinkage,
                 CallLoweringInfo &CLI, SDValue Callee, SDValue Chain) const;
 
+        /*
+         * pass arguments into a function call
+         */
+        SDValue LowerCall(TargetLowering::CallLoweringInfo &CLI,
+                          SmallVectorImpl<SDValue> &InVals) const override;
+
+        /*
+         * pull arguments out of a function call return
+         */
         SDValue LowerCallResult(SDValue Chain, SDValue InFlag,
                                 CallingConv::ID CallConv, bool isVarArg,
                                 const SmallVectorImpl<ISD::InputArg> &Ins,
@@ -101,14 +110,23 @@ namespace llvm {
                                 SmallVectorImpl<SDValue> &InVals,
                                 const SDNode *CallNode, const Type *RetTy) const;
 
+        /*
+         * read out arguments in a function
+         */
         SDValue LowerFormalArguments(SDValue Chain,
                            CallingConv::ID CallConv, bool IsVarArg,
                            const SmallVectorImpl<ISD::InputArg> &Ins,
                            const SDLoc &dl, SelectionDAG &DAG,
                            SmallVectorImpl<SDValue> &InVals) const override;
 
-        SDValue LowerCall(TargetLowering::CallLoweringInfo &CLI,
-                          SmallVectorImpl<SDValue> &InVals) const override;
+        /*
+         * write out function return in a function
+         */
+        SDValue LowerReturn(SDValue Chain,
+                            CallingConv::ID CallConv, bool IsVarArg,
+                            const SmallVectorImpl<ISD::OutputArg> &Outs,
+                            const SmallVectorImpl<SDValue> &OutVals,
+                            const SDLoc &dl, SelectionDAG &DAG) const override;
 
         void passByValArg(SDValue Chain, const SDLoc &DL, SmallVectorImpl<SDValue> &MemOpChains, SDValue StackPtr, MachineFrameInfo &MFI,
                             SelectionDAG &DAG, SDValue Arg, const ISD::ArgFlagsTy &Flags, const CCValAssign &VA) const;
@@ -117,12 +135,7 @@ namespace llvm {
         SDValue lowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
         SDValue lowerVASTART(SDValue Op, SelectionDAG &DAG) const;
         SDValue lowerVAARG(SDValue Op, SelectionDAG &DAG) const;
-
-        SDValue LowerReturn(SDValue Chain,
-                            CallingConv::ID CallConv, bool IsVarArg,
-                            const SmallVectorImpl<ISD::OutputArg> &Outs,
-                            const SmallVectorImpl<SDValue> &OutVals,
-                            const SDLoc &dl, SelectionDAG &DAG) const override;
+        SDValue lowerJumpTable(SDValue Op, SelectionDAG &DAG) const;
     };
 }
 

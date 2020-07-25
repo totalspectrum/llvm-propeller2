@@ -35,14 +35,11 @@ namespace {
         StringRef getPassName() const override { return "P2 Expand Pseudos"; }
 
     private:
-
-
-
         const P2InstrInfo *TII;
         const P2TargetMachine &TM;
 
         void expand_QUDIV(MachineFunction &MF, MachineBasicBlock::iterator SII);
-        void expand_QSREM(MachineFunction &MF, MachineBasicBlock::iterator SII);
+        //void expand_QSREM(MachineFunction &MF, MachineBasicBlock::iterator SII);
         void expand_QUREM(MachineFunction &MF, MachineBasicBlock::iterator SII);
         void expand_MOVri32(MachineFunction &MF, MachineBasicBlock::iterator SII);
         void expand_SELECTCC(MachineFunction &MF, MachineBasicBlock::iterator SII, ISD::CondCode cc);
@@ -67,22 +64,22 @@ void P2ExpandPseudos::expand_QUDIV(MachineFunction &MF, MachineBasicBlock::itera
     SI.eraseFromParent();
 }
 
-void P2ExpandPseudos::expand_QSREM(MachineFunction &MF, MachineBasicBlock::iterator SII) {
-    MachineInstr &SI = *SII;
+// void P2ExpandPseudos::expand_QSREM(MachineFunction &MF, MachineBasicBlock::iterator SII) {
+//     MachineInstr &SI = *SII;
 
-    errs() << "WARNING: Using srem, which hasn't been updated to handle negative numbers\n";
+//     errs() << "WARNING: Using srem, which hasn't been updated to handle negative numbers\n";
 
-    LLVM_DEBUG(errs()<<"== lower pseudo signed remainder\n");
-    LLVM_DEBUG(SI.dump());
+//     LLVM_DEBUG(errs()<<"== lower pseudo signed remainder\n");
+//     LLVM_DEBUG(SI.dump());
 
-    BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(P2::QDIVrr))
-            .addReg(SI.getOperand(1).getReg())
-            .addReg(SI.getOperand(2).getReg());
-    BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(P2::GETQY), SI.getOperand(0).getReg())
-            .addReg(P2::QY);
+//     BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(P2::QDIVrr))
+//             .addReg(SI.getOperand(1).getReg())
+//             .addReg(SI.getOperand(2).getReg());
+//     BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(P2::GETQY), SI.getOperand(0).getReg())
+//             .addReg(P2::QY);
 
-    SI.eraseFromParent();
-}
+//     SI.eraseFromParent();
+// }
 
 void P2ExpandPseudos::expand_QUREM(MachineFunction &MF, MachineBasicBlock::iterator SII) {
     MachineInstr &SI = *SII;
@@ -113,10 +110,18 @@ void P2ExpandPseudos::expand_MOVri32(MachineFunction &MF, MachineBasicBlock::ite
     if (SI.getOperand(1).isGlobal()) {
         BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(P2::AUGS))
             .addImm(0); // we will encode the correct value into this later. if just printing assembly,
-                        // the final optimization pass should remove this instruction
+                        // the final optimization pass should remove this instruction (TODO)
                         // as a result, the exact printing of this instruction won't be correct
         BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(P2::MOVri), SI.getOperand(0).getReg())
             .addGlobalAddress(SI.getOperand(1).getGlobal());
+
+    } else if (SI.getOperand(1).isJTI()) {
+        BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(P2::AUGS))
+            .addImm(0); // we will encode the correct value into this later. if just printing assembly,
+                        // the final optimization pass should remove this instruction (TODO)
+                        // as a result, the exact printing of this instruction won't be correct
+        BuildMI(*SI.getParent(), SI, SI.getDebugLoc(), TII->get(P2::MOVri), SI.getOperand(0).getReg())
+            .addJumpTableIndex(SI.getOperand(1).getIndex());
 
     } else {
         uint32_t imm = SI.getOperand(1).getImm();
@@ -264,9 +269,6 @@ bool P2ExpandPseudos::runOnMachineFunction(MachineFunction &MF) {
             switch (MBBI->getOpcode()) {
                 case P2::QUDIV:
                     expand_QUDIV(MF, MBBI);
-                    break;
-                case P2::QSREM:
-                    expand_QSREM(MF, MBBI);
                     break;
                 case P2::QUREM:
                     expand_QUREM(MF, MBBI);

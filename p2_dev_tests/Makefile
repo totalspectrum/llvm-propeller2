@@ -3,11 +3,11 @@ CC = $(LLVM)/bin/clang
 LD = $(LLVM)/bin/ld.lld
 LOAD = loadp2
 
-TARGET = test10
+TARGET = test11
 OBJDIR = build
 
-CFLAGS = -O1 -ffunction-sections -fdata-sections --target=p2 -I./p2lib
-LFLAGS = -Tp2.ld
+CFLAGS = -ffunction-sections -fdata-sections -fno-jump-tables --target=p2 -I./p2lib -I../p2-libc/include -D__propeller2__
+LFLAGS = -Tp2.ld -L../p2-libc/build
 LOADFLAGS = -v -ZERO -b 230400 -t
 
 .PHONY: all setup clean load
@@ -22,7 +22,7 @@ $(OBJDIR)/$(TARGET).elf: $(OBJDIR)/$(TARGET).o $(OBJDIR)/propeller2.o $(OBJDIR)/
 		$(LD) $(LFLAGS) -o $@ $^
 
 $(OBJDIR)/$(TARGET).o: $(TARGET).cpp p2lib/propeller2.h
-		$(CC) $(CFLAGS) -o $@ -c $< #-mllvm --debug-only=p2-isel-lower,p2-frame-lower
+		$(CC) $(CFLAGS) -o $@ -c $< #-mllvm -debug #--debug-only=p2-isel-lower,p2-frame-lower
 
 $(OBJDIR)/propeller2.o: p2lib/propeller2.c p2lib/propeller2.h
 		$(CC) $(CFLAGS) -o $@ -c $< #-mllvm --debug-only=p2-frame-lower
