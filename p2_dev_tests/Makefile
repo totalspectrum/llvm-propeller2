@@ -3,11 +3,11 @@ CC = $(LLVM)/bin/clang
 LD = $(LLVM)/bin/ld.lld
 LOAD = loadp2
 
-TARGET = test11
+TARGET = test12
 OBJDIR = build
 
 CFLAGS = -ffunction-sections -fdata-sections -fno-jump-tables --target=p2 -I./p2lib -I../p2-libc/include -D__propeller2__
-LFLAGS = -Tp2.ld -L../p2-libc/build
+LFLAGS = -Tp2.ld -L../p2-libc/build -lc
 LOADFLAGS = -v -ZERO -b 230400 -t
 
 .PHONY: all setup clean load

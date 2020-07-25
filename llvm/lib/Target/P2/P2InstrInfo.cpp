@@ -262,8 +262,8 @@ unsigned P2InstrInfo::insertBranch(MachineBasicBlock &MBB, MachineBasicBlock *TB
                                     ArrayRef<MachineOperand> Cond, const DebugLoc &dl, int *BytesAdded) const {
 
 
-    errs() << "Insert Branch MBB: ";
-    MBB.dump();
+    LLVM_DEBUG(errs() << "Insert Branch MBB: ");
+    LLVM_DEBUG(MBB.dump());
 
     // Shouldn't be a fall through.
     assert(TBB && "insertBranch must not be told to insert a fallthrough");
