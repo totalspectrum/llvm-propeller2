@@ -32,10 +32,11 @@ The goal of this project is to write an LLVM backend to generate code for the Pr
 1. create clang extensions for special directives and being able to write directly to I/O regsiters, specify functions and variables as going into hub, cog, or LUT memory, etc.
 1. port the necessary functions from the c standard library to make c/c++ useful.
     - port over propgcc library for this.
+1. Expand assembly parser to support wc/wz/wcz and conditional modifiers on instructions
 1. Random TODOs
     - change spilling/restoring callee saved regs using pusha/popa instead of rdlong/wrlong. would convert 3 instructions/register save into 1.
+    - change frame pointer elimination to instead of subtracting an offset to use the special form of rdlong/wrlong on ptra (page 60 of datasheet)
     - implement "libcalls" for signed division, multiplication, etc and functions that can live in cog memory for speed. TBD how to do that yet.
-    -
 
 The high level of how this will work:
 1. use clang to compile c/c++ source into LLVM's IR language. Eventually any LLVM front end should work
@@ -58,7 +59,7 @@ I am developing this project with two main goals in mind:
 
 ## Getting Started
 See README.md, with the following notes:
-- when running `cmake`, run `cmake -G "Unix Makefiles" -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_INSTALL_PREFIX=<install dir> -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=P2 ../llvm`
+- when running `cmake`, run `cmake -G "Unix Makefiles" -DLLVM_ENABLE_PROJECTS="lld;clang" -DCMAKE_INSTALL_PREFIX=<install dir> -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=P2 ../llvm`
 - building for the first time will take quite a bit of time, ~20 min.
 - to run one of the examples in p2_dev_tests, run in two steps (from p2_dev_tests/)
     - `../build/bin/clang -target mips-unknown-linux-gnu -S -c <file>.cpp -emit-llvm -o <file>.ll` (Eventually need to create a P2 target in clang). This compiles C down to LLVM IR language.
@@ -130,3 +131,9 @@ There are two libraries necessary to really round out the functionality of Prope
 The starting point of the Propeller Standard Library exists in p2_dev_tests/p2lib. This needs A LOT of work still and community agreement on what it should do.
 
 There are a few things that intersect between the two Libraries (such as I/O FILE drivers for serial, etc). TBD on where this will go or how to implement it portably, but that problem is outside of the scope of this project (for now).
+
+### Known Issues
+
+- Jump tables don't work. Make sure to compile with -fno-jump-tables or else switch statements won't work.
+- There's an issue somewhere with relocating symbols stored in .rodata (i.e if you try to do something like `struct_t a = {a_global_value}`), `a_global_value` won't get re-located correctly by the linker and the resulting code doesn't work. workaround is to explicitly set the value in a to `a_global_value`, i.e. `a.val = a_global_value`.
+- mod operator gets lowered to multiplication/division/subtraction, which seems to sometimes not return the correct value. For instance, if writing a printf implementation, and we want to get the character for a given digit, we might do something like `"0123456789abcdef"[n % base]`. `n % base` seems to have some high bits set to 1 (seemingly random). I believe this is a result of how multiplication is done and the issue is the representation of the mul instruction in the backend. to be explored more.

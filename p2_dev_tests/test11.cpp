@@ -61,6 +61,11 @@ int main() {
     i = 5;
     switch_test(i);
 
+    i = -1;
+    if (i >= 0) {
+        uart_str("i >= 0\n");
+    }
+
     while(1);
     return 0;
 }

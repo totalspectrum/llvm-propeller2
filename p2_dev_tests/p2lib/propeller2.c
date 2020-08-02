@@ -4,6 +4,7 @@ extern void _start();
 
 unsigned _uart_tx_pin;
 unsigned _uart_rx_pin;
+unsigned _uart_clock_per_bit;
 
 unsigned uart_init(unsigned rx, unsigned tx, unsigned baud) {
     _uart_rx_pin = rx;
@@ -14,7 +15,7 @@ unsigned uart_init(unsigned rx, unsigned tx, unsigned baud) {
     // see async mode for explanation of these values
     _baudrate = baud;
     unsigned int x = _clkfreq/baud;
-    unsigned int uart_clock_per_bit = x;
+    _uart_clock_per_bit = x;
 
     x <<= 16;
     x &= 0xfffffc00;
@@ -28,11 +29,12 @@ unsigned uart_init(unsigned rx, unsigned tx, unsigned baud) {
     wxpin(x, rx);
     dirh(rx);
 
-    return uart_clock_per_bit;
+    return _uart_clock_per_bit;
 }
 
 void uart_putc(char c) {
     wypin(c, _uart_tx_pin);
+    waitx(_uart_clock_per_bit*10); // eventually should be a wait
 }
 
 void clkset(unsigned clkmode, unsigned clkfreq) {

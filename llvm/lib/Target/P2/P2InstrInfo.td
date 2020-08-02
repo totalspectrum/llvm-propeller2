@@ -320,13 +320,6 @@ defm SELECTlt   : sel_cc<SETLT>;
 defm SELECTgt   : sel_cc<SETGT>;
 defm SELECTge   : sel_cc<SETGE>;
 
-/*
-def SELECTrr    : Pseudo<(outs P2GPR:$d), (P2GPR:$t, P2GPR:$f), "select %d, $t, $f", [(set P2GPR:$d, (select P2GPR:$c, P2GPR:$t, P2GPR:$f))]>;
-def SELECTri    : Pseudo<(outs P2GPR:$d), (P2GPR:$t, s9imm:$f), "select %d, $t, #$f", [(set P2GPR:$d, (select P2GPR:$c, P2GPR:$t, imm9:$f))]>;
-def SELECTir    : Pseudo<(outs P2GPR:$d), (s9imm:$t, P2GPR:$f), "select %d, #$t, $f", [(set P2GPR:$d, (select P2GPR:$c, imm9:$t, P2GPR:$f))]>;
-def SELECTii    : Pseudo<(outs P2GPR:$d), (s9imm:$t, s9imm:$f), "select %d, #$t, #$f", [(set P2GPR:$d, (select P2GPR:$c, imm9:$t, imm9:$f))]>;
-*/
-
 def : Pat<(select P2GPR:$c, P2GPR:$t, P2GPR:$f), (SELECTuneirr P2GPR:$c, 0, P2GPR:$t, P2GPR:$f)>;
 def : Pat<(select P2GPR:$c, P2GPR:$t, imm9:$f), (SELECTuneiri P2GPR:$c, 0, P2GPR:$t, imm9:$f)>;
 def : Pat<(select P2GPR:$c, imm9:$t, P2GPR:$f), (SELECTuneiir P2GPR:$c, 0, imm9:$t, P2GPR:$f)>;
@@ -359,10 +352,13 @@ def MOVgtrr     : P2InstCZIDS<0b0110000, 0b000, if_nc_and_nz, (outs P2GPR:$d), (
 def MOVlteri     : P2InstCZIDS<0b0110000, 0b001, if_c_or_z, (outs P2GPR:$d), (ins s9imm:$s), "mov $d, #$s", []>;
 def MOVlterr     : P2InstCZIDS<0b0110000, 0b000, if_c_or_z, (outs P2GPR:$d), (ins P2GPR:$s), "mov $d, $s", []>;
 
+def RDBYTEri    : P2InstCZIDS<0b1010110, 0b001, always, (outs P2GPR:$d), (ins s9imm:$s), "rdbyte $d, #$s", [(set P2GPR:$d, (zextloadi8 imm9:$s))]>;
 def RDBYTErr    : P2InstCZIDS<0b1010110, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$s), "rdbyte $d, $s", [(set P2GPR:$d, (zextloadi8 addr:$s))]>;
 
+def RDWORDri    : P2InstCZIDS<0b1010111, 0b001, always, (outs P2GPR:$d), (ins s9imm:$s), "rdword $d, #$s", [(set P2GPR:$d, (zextloadi16 imm9:$s))]>;
 def RDWORDrr    : P2InstCZIDS<0b1010111, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$s), "rdword $d, $s", [(set P2GPR:$d, (zextloadi16 addr:$s))]>;
 
+def RDLONGri    : P2InstCZIDS<0b1011000, 0b001, always, (outs P2GPR:$d), (ins s9imm:$s), "rdlong $d, #$s", [(set P2GPR:$d, (load imm9:$s))]>;
 def RDLONGrr    : P2InstCZIDS<0b1011000, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$s), "rdlong $d, $s", [(set P2GPR:$d, (load addr:$s))]>;
 
 def WRBYTErr    : P2InstLIDS<0b11000100, 0b00, always, (outs), (ins P2GPR:$d, P2GPR:$s), "wrbyte $d, $s", [(truncstorei8 P2GPR:$d, addr:$s)]>;

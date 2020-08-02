@@ -49,7 +49,7 @@ void P2InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB, MachineBasicBlock
 
     unsigned Opcode = 0;
     if (TRI->isTypeLegalForClass(*RC, MVT::i32)) {
-        Opcode = P2::RDLONGrr;
+        Opcode = P2::RDLONGri;
     } else {
         llvm_unreachable("Cannot load this register from a stack slot!");
     }
@@ -97,7 +97,7 @@ void P2InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
 
     unsigned Opcode = 0;
     if (TRI->isTypeLegalForClass(*RC, MVT::i32)) {
-        Opcode = P2::WRLONGrr;
+        Opcode = P2::WRLONGri;
     } else {
         llvm_unreachable("Cannot store this register into a stack slot!");
     }
@@ -143,7 +143,6 @@ static bool isCondBranchOpcode(int op) {
     (op == P2::JMPgt) ||
     (op == P2::JMPlte);
 }
-
 
 /// Analyze the branching code at the end of MBB, returning
 /// true if it cannot be understood (e.g. it's a switch dispatch or isn't

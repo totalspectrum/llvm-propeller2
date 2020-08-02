@@ -31,8 +31,7 @@ def P2AsmParserVariant : AsmParserVariant {
     string RegisterPrefix = "$";
 }
 
-class Proc<string Name>
- : Processor<Name, NoItineraries, []>;
+class Proc<string Name> : Processor<Name, NoItineraries, []>;
 
 def : Proc<"Propeller 2">;
 

@@ -3,8 +3,6 @@
 
 #include "propeller2.h"
 
-inline void _start();
-
 void _entry() {
     // basic entry code to jump to our resuable startup code.
     // we inline this function, and it will get overwritten later by hub params (clkfreq, clkmode, etc)
@@ -21,9 +19,9 @@ void _start() {
         "rdlong $r1, $r0\n"     //  read out first stack value
         "add $r0, #4\n"
         "rdlong $r0, $r0\n"     //  read out second stack value
-        "jmp $r1\n");           //  jump to the cog function
+        "jmp $r1\n"             //  jump to the cog function
 
-    asm("augs #1\n"
+        "augs #1\n"
         "mov $ptra, #0\n"       // cog0 startup: start the stack at 0x200 to reserve room for startup code/global things stored at the start of memory
         "augs #2\n"
         "mov $r0, #0\n"         // r0 = 0x400

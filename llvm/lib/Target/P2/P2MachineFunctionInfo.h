@@ -63,7 +63,9 @@ public:
         VarArgsFrameOffset(0),
         VarArgsFrameIndex(0),
         EmitNOAT(false),
-        MaxCallFrameSize(0)
+        IncomingArgSize(0),
+        MaxCallFrameSize(0),
+        CalleeSavedFrameSize(0)
         {}
 
     ~P2FunctionInfo();

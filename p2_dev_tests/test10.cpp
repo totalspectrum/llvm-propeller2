@@ -27,7 +27,7 @@ volatile unsigned int blink4_stack[32];
 volatile int uart_clock_per_bits;
 
 void uart_str(const char *str) __attribute__((noinline));
-void uart_dec(int n) __attribute__((noinline));
+void uart_int(int n, unsigned int base) __attribute__((noinline));
 
 /*
  * print a 0 terminated string
@@ -40,22 +40,24 @@ void uart_str(const char *str) {
     }
 }
 
-void uart_dec(int n) {
-    char tmp[11]; // we'll never have more than 10 digits for a 32 bit number in base 10 (including negative), plus 1 for 0 termination
-    int i = 10;
-    bool is_neg = false;
-    if (n < 0) {
-        n = -n;
-        is_neg = true;
-    }
+void uart_int(int n, unsigned int base) {
+    char tmp[12]; // we'll never have more than 10 digits for a 32 bit number in base 10 (including negative), plus 1 for 0 termination
+    int i = 11;
+    //bool is_neg = false;
+    // if (n < 0) {
+    //     n = -n;
+    //     is_neg = true;
+    // }
+
+    const char *chars = "0123456789abcdef";
 
     tmp[i--] = 0; // 0 terminate the string
     do {
-        tmp[i--] = '0' + (n % 10);
-        n = n/10;
-    } while (n != 0);
+        tmp[i--] = chars[(n%base)&0xf]; // mask the bits to make sure we don't index something outside of the range of chars
+        n = n/base;
+    } while (n > 0);
 
-    if (is_neg) tmp[i--] = '-';
+    //if (is_neg) tmp[i--] = '-';
     uart_str(&tmp[i+1]);
 }
 
@@ -87,7 +89,6 @@ void start_blinks(led_mb_t *led, ...) {
         cognew(blink, (int)l, (unsigned int*)(l->stack));
         l = va_arg(args, led_mb_t*);
     }
-
 }
 
 // sum n numbers
@@ -104,39 +105,33 @@ int sum(int n, ...) {
     return v;
 }
 
-int sumsub(int a, int b, int c, int d, int e, int f) __attribute__((noinline));
-
-int sumsub(int a, int b, int c, int d, int e, int f) {
-    return a - b + c - d + e - f;
-}
-
-
 int main() {
     clkset(_SETFREQ, _CLOCKFREQ);
     uart_clock_per_bits = uart_init(RX_PIN, TX_PIN, 230400);
 
     uart_str("Variadic function test\n");
 
-    led_mb_t led1 = {56, _CLOCKFREQ, (unsigned int*)blink1_stack};
-    led_mb_t led2 = {57, _CLOCKFREQ/2, (unsigned int*)blink2_stack};
-    led_mb_t led3 = {58, _CLOCKFREQ/3, (unsigned int*)blink3_stack};
-    led_mb_t led4 = {59, _CLOCKFREQ/4, (unsigned int*)blink4_stack};
+    // led_mb_t led1 = {56, 20000000, (unsigned int*)blink1_stack};
+    // led_mb_t led2 = {57, 20000000/2, (unsigned int*)blink2_stack};
+    // led_mb_t led3 = {58, 20000000/3, (unsigned int*)blink3_stack};
+    // led_mb_t led4 = {59, 20000000/4, (unsigned int*)blink4_stack};
+
+    // See wiki for why I'm doing things this way
+    led_mb_t led1 = {56, _CLOCKFREQ, 0};
+    led_mb_t led2 = {57, _CLOCKFREQ/2, 0};
+    led_mb_t led3 = {58, _CLOCKFREQ/3, 0};
+    led_mb_t led4 = {59, _CLOCKFREQ/4, 0};
+
+    led1.stack = (unsigned int*)blink1_stack;
+    led2.stack = (unsigned int*)blink2_stack;
+    led3.stack = (unsigned int*)blink3_stack;
+    led4.stack = (unsigned int*)blink4_stack;
 
     start_blinks(&led1, &led2, &led3, &led4, 0);
 
-    // int y = sumsub(1, 2, 3, 4, 5, 6);
-    // uart_dec(y);
-    // uart_str("\n");
-
     int x = sum(5, 10, 20, -1, 34, -24);
-    uart_dec(x);
+    uart_int(x, 10);
     uart_str("\r\n");
-
-    x = sumsub(1, 2, 3, 4, 5, 6);
-    uart_dec(x);
-    uart_str("\r\n");
-
-    //outh(56);
 
     while(1);
     return 0;

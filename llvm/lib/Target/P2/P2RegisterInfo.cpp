@@ -64,7 +64,7 @@ void P2RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int SPA
     DebugLoc dl = MI.getDebugLoc();
     MachineFunction &MF = *MI.getParent()->getParent();
     MachineFrameInfo &MFI = MF.getFrameInfo();
-    //P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
+    P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
     const P2TargetMachine &TM = (const P2TargetMachine &)MF.getTarget();
     const TargetInstrInfo &inst_info = *TM.getInstrInfo();
     const TargetFrameLowering *TFI = TM.getFrameLowering();
@@ -88,6 +88,11 @@ void P2RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int SPA
 
     assert(offset >= 0 && "Invalid offset"); // offset should be positive or 0
 
+    int op = MI.getOpcode();
+
+    // if the op code using the frame index is rdlong or wrlong, we can use a special immediate to read/write PTRA
+    bool can_use_ptr_off = (op == P2::WRLONGri) || (op == P2::RDLONGri);
+
     if (MI.getOpcode() == P2::FRMIDX) {
         MI.setDesc(inst_info.get(P2::MOVrr)); // change our psesudo instruction to a mov
         MI.getOperand(FIOperandNum).ChangeToRegister(P2::PTRA, false); // change the abstract frame index register to our real stack pointer register
@@ -99,21 +104,28 @@ void P2RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int SPA
         BuildMI(*MI.getParent(), II, dl, inst_info.get(P2::SUBri), dst_reg)
                                 .addReg(dst_reg, RegState::Kill)
                                 .addImm(offset);
+    } else if ((op == P2::WRLONGri) || (op == P2::RDLONGri)) {
+        int imm = 0x4;
+
+        // offset can be up to 128, since the index for the special immediate is scaled by 4 when using rdlong/wrlong
+        // later we can make this more generic for bytes and words too--adjusting the scale appropriately
+        if (offset > 128) {
+            imm <<= 20;
+            imm += ((1<<20) - offset/4) & 0xfffff;
+
+            BuildMI(*MI.getParent(), II, dl, inst_info.get(P2::AUGS)).addImm(imm >> 9);
+            MI.getOperand(1).ChangeToImmediate(imm & 0x1ff);
+        } else {
+            imm <<= 6;
+            imm += ((1<<6) - offset/4) & 0x3f;
+
+            MI.getOperand(1).ChangeToImmediate(imm & 0x1ff);
+        }
+
     } else {
         // if we decide we need to scavange registers, we need to create an emergency stack slock in frame lowering,
         // then make sure to kill the register after it is used here. For now, we can just use PTRB as a second stack pointer
         // register for writing to this frame index
-
-        // Register reg = RS->FindUnusedReg(&P2::P2GPRRegClass);
-        // if (!reg) {
-        //     LLVM_DEBUG(errs() << "No unused registers available, scavenging one\n");
-        //     reg = RS->scavengeRegister(&P2::P2GPRRegClass, SPAdj);
-        //     RS->setRegUsed(reg);
-        // }
-
-        // assert(reg && "Need to have a register for frame index elimination");
-
-        // LLVM_DEBUG(errs() << "got reg to use " << reg << "\n");
 
         Register reg = P2::PTRB;
 
@@ -124,7 +136,7 @@ void P2RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int SPA
                                 .addReg(reg, RegState::Kill)
                                 .addImm(offset); // adjust saved SP by frame index offset
 
-        LLVM_DEBUG((*II).dump(); errs() << "... became ";);
+        LLVM_DEBUG((*II).dump(); errs() << "... became ");
 
         (*II).getOperand(FIOperandNum).ChangeToRegister(reg, false);
 

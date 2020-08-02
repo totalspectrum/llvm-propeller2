@@ -20,7 +20,11 @@ SECTIONS {
         *(.rodata*);
     }
 
+    .data : {
+        *(.data*);
+    }
+
     .bss : {
-        *(.bss);
+        *(.bss*);
     }
 }

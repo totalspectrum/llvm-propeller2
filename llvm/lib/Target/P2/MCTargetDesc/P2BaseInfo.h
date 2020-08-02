@@ -41,6 +41,12 @@ namespace llvm {
         def always          : P2Effect<"", 0b1111>;
         */
 
+        // special immediates for rd/wrbyte/word/long that will modify PTRx
+        enum name {
+            PTRA_POSTINC = 0x161,
+            PTRA_PREDEC = 0x15f
+        };
+
         enum {
             _RET_ = 0,
             IF_NC_AND_NZ,

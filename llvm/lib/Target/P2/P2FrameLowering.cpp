@@ -16,6 +16,8 @@
 #include "P2InstrInfo.h"
 #include "P2TargetMachine.h"
 #include "P2MachineFunctionInfo.h"
+#include "MCTargetDesc/P2BaseInfo.h"
+
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -34,9 +36,11 @@ The stack will grow up. regsiter sp always points to the TOP of the stack, which
 Selection will generate FRMIDX pseudo instructions that will be lowered in register info by be subtracting from the
 current stack pointer (sp) by the frame index offset. The callee will not save any regsiters it uses. The data in the stack frame
 will be organized as follows:
-
-SP ----------> ----------------- (3)
+SP ----------> ----------------- (4)
                 local variables
+                ...
+               ----------------- (3)
+                callee saved regs
                 ...
                ----------------- (2)
                 return address (pushed automatically)
@@ -48,8 +52,9 @@ SP ----------> ----------------- (3)
 SP (previous)  -----------------
 
 Here's the ordering of sp adjustment: when calling, SP (previous) is adjusted for arguments (1). The function is called and return address
-(and status word) is pushed onto the stack with the call (2). The function then allocates space it needs to saving registers, and local
-variables (3). SP now becomes SP (previous) when getting ready to call another function.
+(and status word) is pushed onto the stack with the call (2). The function then allocates space it needs to save registers (3), and local
+variables (4). SP now becomes SP (previous) when getting
+ready to call another function.
 
 */
 
@@ -83,15 +88,15 @@ void P2FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) 
     const P2InstrInfo *TII = MF.getSubtarget<P2Subtarget>().getInstrInfo();
     MachineBasicBlock::iterator MBBI = MBB.begin();
     P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
-    const MachineFrameInfo &MFI = MF.getFrameInfo();
+    MachineFrameInfo &MFI = MF.getFrameInfo();
 
-    // the stack gets preallocated for incoming arguments + 4 bytes for the PC/SW, so don't allocate that in the
-    // prologue
-    uint64_t StackSize = MFI.getStackSize() - 4 - P2FI->getIncomingArgSize();
-    LLVM_DEBUG(errs() << "Allocating " << StackSize << " bytes for stack\n");
+    // the stack gets preallocated for incoming arguments + 4 bytes for the PC/SW + regs already saved to the stack,
+    // so don't allocate that in the prologue
+    uint64_t StackSize = MFI.getStackSize() - 4 - P2FI->getIncomingArgSize();// - P2FI->getCalleeSavedFrameSize();
+    LLVM_DEBUG(errs() << "Allocating " << StackSize << " bytes for stack (original value: " << MFI.getStackSize() << ")\n");
 
     // No need to allocate space on the stack.
-    if (StackSize == 0 && !MFI.adjustsStack()) {
+    if (StackSize == 0) {
         LLVM_DEBUG(errs() << "No need to allocate stack space\n");
         return;
     }
@@ -106,7 +111,7 @@ void P2FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) 
     P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
 
     const P2InstrInfo *TII = MF.getSubtarget<P2Subtarget>().getInstrInfo();
-    uint64_t StackSize = MFI.getStackSize() - 4 - P2FI->getIncomingArgSize();
+    uint64_t StackSize = MFI.getStackSize() - 4 - P2FI->getIncomingArgSize();// - P2FI->getCalleeSavedFrameSize();
 
     if (StackSize == 0) {
         LLVM_DEBUG(errs() << "No need to de-allocate stack space\n");
@@ -133,14 +138,15 @@ bool P2FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, MachineB
     const P2Subtarget &STI = MF.getSubtarget<P2Subtarget>();
     const TargetInstrInfo &TII = *STI.getInstrInfo();
     P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
+    MachineFrameInfo *MFI = &MF.getFrameInfo();
 
     LLVM_DEBUG(errs() << "=== Function: " << MF.getName() << " ===\n");
     LLVM_DEBUG(errs() << "Spilling callee saves\n");
 
-    for (unsigned i = CSI.size(); i != 0; --i) {
-        unsigned Reg = CSI[i-1].getReg();
+    for (unsigned i = 0; i < CSI.size(); i++) {
+        unsigned Reg = CSI[i].getReg();
         bool IsNotLiveIn = !MBB.isLiveIn(Reg);
-
+        //int fi = CSI[i].getFrameIdx();
         // Add the callee-saved register as live-in only if it is not already a
         // live-in register, this usually happens with arguments that are passed
         // through callee-saved registers.
@@ -149,10 +155,17 @@ bool P2FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, MachineB
         }
 
         const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
-        TII.storeRegToStackSlot(MBB, MI, Reg, false, CSI[i-1].getFrameIdx(), RC, TRI);
+        TII.storeRegToStackSlot(MBB, MI, Reg, false, CSI[i].getFrameIdx(), RC, TRI);
+        //MFI->mapLocalFrameObject(fi, MFI->getObjectOffset(fi));
 
-        LLVM_DEBUG(errs() << "--- spilling " << Reg << " to index " << CSI[i-1].getFrameIdx() << "\n");
+        // PUSHA is just an alias for wrlong with a special immediate address
+        //BuildMI(MBB, MI, DL, TII.get(P2::WRLONGri), Reg).addImm(P2::PTRA_POSTINC);
+        CalleeFrameSize += 4;
+
+        LLVM_DEBUG(errs() << "--- spilling " << Reg << " to index " << CSI[i].getFrameIdx() << "\n");
     }
+
+    P2FI->setCalleeSavedFrameSize(CalleeFrameSize);
 
     return true;
 }
@@ -164,6 +177,7 @@ bool P2FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB, Machin
     MachineFunction &MF = *MBB.getParent();
     const P2Subtarget &STI = MF.getSubtarget<P2Subtarget>();
     const TargetInstrInfo &TII = *STI.getInstrInfo();
+    DebugLoc DL = MBB.findDebugLoc(MI);
 
     LLVM_DEBUG(errs() << "=== Function: " << MF.getName() << " ===\n");
 
@@ -177,6 +191,8 @@ bool P2FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB, Machin
         unsigned Reg = CSI[i-1].getReg();
         const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
         TII.loadRegFromStackSlot(MBB, MI, Reg, CSI[i-1].getFrameIdx(), RC, TRI);
+
+        //BuildMI(MBB, MI, DL, TII.get(P2::RDLONGri), Reg).addImm(P2::PTRA_PREDEC);
 
         LLVM_DEBUG(errs() << "--- restoring " << Reg << " from index " << CSI[i-1].getFrameIdx() << "\n");
     }
