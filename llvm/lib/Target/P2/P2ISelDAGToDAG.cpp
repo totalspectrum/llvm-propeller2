@@ -87,7 +87,7 @@ bool P2DAGToDAGISel::selectAddr(SDValue addr, SDValue &addr_result) {
     }
 
     if (addr.getOpcode() == P2ISD::GAWRAPPER) {
-        addr_result = addr;//.getOperand(0);
+        addr_result = addr;
         return true;
     }
 
@@ -101,24 +101,14 @@ bool P2DAGToDAGISel::selectAddr(SDValue addr, SDValue &addr_result) {
         SDValue base;
         SDNode *add;
         if (isInt<9>(CN->getSExtValue())) {
-            // If the first operand is a FI, get the TargetFI Node
-            // if (FrameIndexSDNode *FIN = dyn_cast<FrameIndexSDNode>(addr.getOperand(0))) {
-            //     base = CurDAG->getTargetFrameIndex(FIN->getIndex(), vt);
-            //     LLVM_DEBUG(errs() << "...base is a frame index: ");
-            // } else {
-                base = addr.getOperand(0);
-                LLVM_DEBUG(errs() << "...base is: ");
-            //}
-
+            base = addr.getOperand(0);
+            LLVM_DEBUG(errs() << "...base is: ");
             LLVM_DEBUG(base.dump());
+
             SDValue off = CurDAG->getTargetConstant(CN->getZExtValue(), DL, vt);
             add = CurDAG->getMachineNode(P2::ADDri, DL, vt, base, off);
             addr_result = SDValue(add, 0);
 
-            // addr_result = CurDAG->getNode(ISD::ADD, DL, vt, base, off);
-            // SDNode *res = addr_result.getNode();
-            // res = SelectCode(res);
-            // addr_result = SDValue(res, 0);
             return true;
         }
         llvm_unreachable("offset in address offset is too large!");

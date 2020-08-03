@@ -38,6 +38,9 @@ namespace llvm {
             // 20+ bit fixup for global addresses
             fixup_P2_AUG20,
 
+            // 9 bit fixup for cog based functions
+            fixup_P2_COG9,
+
             // Marker
             LastTargetFixupKind,
             NumTargetFixupKinds = LastTargetFixupKind - FirstTargetFixupKind

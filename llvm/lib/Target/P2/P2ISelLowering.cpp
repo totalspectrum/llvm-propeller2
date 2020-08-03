@@ -315,16 +315,17 @@ SDValue P2TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     // node so that legalize doesn't hack it.
     bool GlobalOrExternal = false, InternalLinkage = false;
     SDValue CalleeLo;
-    //EVT Ty = Callee.getValueType();
 
     if (GlobalAddressSDNode *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
         Callee = DAG.getTargetGlobalAddress(G->getGlobal(), DL, getPointerTy(DAG.getDataLayout()), 0);
         GlobalOrExternal = true;
+        LLVM_DEBUG(errs() << "Callee is a global address\n");
     }  else if (ExternalSymbolSDNode *S = dyn_cast<ExternalSymbolSDNode>(Callee)) {
         const char *Sym = S->getSymbol();
 
         Callee = DAG.getTargetExternalSymbol(Sym, getPointerTy(DAG.getDataLayout()));
 
+        LLVM_DEBUG(errs() << "Callee is an external symbol\n");
         GlobalOrExternal = true;
     }
 

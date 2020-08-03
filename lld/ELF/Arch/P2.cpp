@@ -51,6 +51,7 @@ namespace lld {
                 case R_P2_32:
                 case R_P2_20:
                 case R_P2_AUG20:
+                case R_P2_COG9:
                     return R_ABS;
                 case R_P2_PC20:
                     return R_PC;
@@ -80,6 +81,17 @@ namespace lld {
                     aug = (aug & ~0x7fffff) | (val >> 9); // get the upper 23 bits into the previous AUG instruction
 
                     write32le(loc-4, aug);
+                    write32le(loc, inst);
+                    break;
+                }
+                case R_P2_COG9: {
+                    uint32_t inst = read32le(loc);
+                    // TODO: make this more flexible. right now it assumes the COG-based library lives at
+                    // 0x100. Eventually we want to mark any function/variable as being able to live in the cog.
+                    inst += ((val-0x100)/4) & 0x1ff;
+                    LLVM_DEBUG(errs() << "cog function relocation\n");
+                    LLVM_DEBUG(errs() << "original value is " << (int)val << "\n");
+                    LLVM_DEBUG(errs() << "adjusted value is " << (int)(((val-0x100)/4) & 0x1ff) << "\n");
                     write32le(loc, inst);
                     break;
                 }

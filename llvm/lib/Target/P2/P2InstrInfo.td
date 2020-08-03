@@ -147,12 +147,18 @@ let Constraints = "$src1 = $d" in {
     def MULrr   : P2InstZIDS<0b10100000, 0b00, always, (outs P2GPR:$d), (ins P2GPR:$src1, P2GPR:$s), "mul $d, $s", [(set P2GPR:$d, (mul P2GPR:$src1, P2GPR:$s))]>;
     def MULri   : P2InstZIDS<0b10100000, 0b01, always, (outs P2GPR:$d), (ins P2GPR:$src1, s9imm:$s), "mul $d, #$s", [(set P2GPR:$d, (mul P2GPR:$src1, imm9:$s))]>;
 
+    def MULSrr   : P2InstZIDS<0b10100001, 0b00, always, (outs P2GPR:$d), (ins P2GPR:$src1, P2GPR:$s), "mul $d, $s", []>;
+    def MULSri   : P2InstZIDS<0b10100001, 0b01, always, (outs P2GPR:$d), (ins P2GPR:$src1, s9imm:$s), "mul $d, #$s", []>;
+
     def SIGNXrr : P2InstCZIDS<0b0111011, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$src1, P2GPR:$s), "signx $d, $s", []>;
     def SIGNXri : P2InstCZIDS<0b0111011, 0b001, always, (outs P2GPR:$d), (ins P2GPR:$src1, s9imm:$s), "signx $d, #$s", []>;
 }
 
 def NOTrr   : P2InstCZIDS<0b0110001, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$s), "not $d, $s", [(set P2GPR:$d, (not P2GPR:$s))]>;
 def NOTri   : P2InstCZIDS<0b0110001, 0b001, always, (outs P2GPR:$d), (ins s9imm:$s), "not $d, #$s", [(set P2GPR:$d, (not imm9:$s))]>;
+
+def ABSrr   : P2InstCZIDS<0b0110010, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$s), "abs $d, $s", [(set P2GPR:$d, (abs P2GPR:$s))]>;
+def ABSri   : P2InstCZIDS<0b0110010, 0b001, always, (outs P2GPR:$d), (ins s9imm:$s), "abs $d, #$s", [(set P2GPR:$d, (abs imm9:$s))]>;
 
 def NEGrr   : P2InstCZIDS<0b0110011, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$s), "neg $d, $s", [(set P2GPR:$d, (ineg P2GPR:$s))]>;
 def NEGri   : P2InstCZIDS<0b0110011, 0b001, always, (outs P2GPR:$d), (ins s9imm:$s), "neg $d, #$s", [(set P2GPR:$d, (ineg imm9:$s))]>;
@@ -184,16 +190,6 @@ let DecoderMethod = "DecodeCordicInstruction" in {
 
 def QUDIV   : Pseudo<(outs P2GPR:$dst), (ins P2GPR:$src1, P2GPR:$src2), "udiv $dst, $src1, $src2", [(set P2GPR:$dst, (udiv P2GPR:$src1, P2GPR:$src2))]>;
 def QUREM   : Pseudo<(outs P2GPR:$dst), (ins P2GPR:$src1, P2GPR:$src2), "urem $dst, $src1, $src2", [(set P2GPR:$dst, (urem P2GPR:$src1, P2GPR:$src2))]>;
-
-/*
-def : Pat<(P2QMUL P2GPR:$d, P2GPR:$s), (QMULrr P2GPR:$d, P2GPR:$s)>;
-def : Pat<(P2QMUL P2GPR:$d, imm9:$s), (QMULri P2GPR:$d, s9imm:$s)>;
-def : Pat<(P2QMUL imm9:$d, P2GPR:$s), (QMULir s9imm:$d, P2GPR:$s)>;
-def : Pat<(P2QMUL imm9:$d, imm9:$s), (QMULii s9imm:$d, s9imm:$s)>;
-
-def : Pat<(P2GETQX P2Implicit:$qx), (GETQX P2Implicit:$qx)>;
-def : Pat<(P2GETQY P2Implicit:$qy), (GETQY P2Implicit:$qy)>;
-*/
 
 /*--------------------------------*/
 /* branching and conditionals     */
@@ -396,7 +392,7 @@ def : Pat<(sextloadi16 addr:$s), (SIGNXri (RDWORDrr P2GPR:$s), 15)>;
 
 let isTerminator = 1, isReturn = 1, isBarrier = 1 in {
     def RET     : P2InstCZ<0b11010111, 0b000000000, 0b000101101, 0b00, always, (outs), (ins), "ret", []>;
-    def RETA    : P2InstCZ<0b11010111, 0b000000000, 0b000101110, 0b00, always, (outs), (ins), "ret", [(P2RET)]>; // primarily use this for returns
+    def RETA    : P2InstCZ<0b11010111, 0b000000000, 0b000101110, 0b00, always, (outs), (ins), "reta", [(P2RET)]>; // primarily use this for returns
 }
 
 // FIXME: add CALLA and use a PTRA for the stack pointer
@@ -448,7 +444,9 @@ def WAITXr      : P2InstLD<0b1101011, 0b000011111, 0b0, always, (outs), (ins P2G
 def WAITXi      : P2InstLD<0b1101011, 0b000011111, 0b1, always, (outs), (ins i32imm:$d), "waitx #$d", []>;
 
 def COGINITrr   : P2InstCLIDS<0b1100111, 0b000, always, (outs), (ins P2GPR:$d, P2GPR:$s), "coginit $d, $s", []>;
-def COGINITir   : P2InstCLIDS<0b1100111, 0b010, always, (outs), (ins i32imm:$d, P2GPR:$s), "coginit #$d, $s", []>;
+def COGINITir   : P2InstCLIDS<0b1100111, 0b010, always, (outs), (ins s9imm:$d, P2GPR:$s), "coginit #$d, $s", []>;
+def COGINITri   : P2InstCLIDS<0b1100111, 0b001, always, (outs), (ins P2GPR:$d, s9imm:$s), "coginit $d, #$s", []>;
+def COGINITii   : P2InstCLIDS<0b1100111, 0b011, always, (outs), (ins s9imm:$d, s9imm:$s), "coginit #$d, #$s", []>;
 
 def HUBSETrr    : P2InstLD<0b1101011, 0b000000000, 0b0, always, (outs), (ins P2GPR:$d), "hubset $d", []>;
 def HUBSETri    : P2InstLD<0b1101011, 0b000000000, 0b1, always, (outs), (ins s9imm:$d), "hubset #$d", []>;

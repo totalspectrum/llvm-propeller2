@@ -22,6 +22,7 @@
 #include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
+#include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCRegisterInfo.h"
@@ -49,8 +50,6 @@ void P2MCCodeEmitter::emitInstruction(uint64_t Val, unsigned Size, raw_ostream &
     }
 }
 
-/// encodeInstruction - Emit the instruction.
-/// Size the instruction (currently only 4 bytes)
 void P2MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
     LLVM_DEBUG(errs() << "==== begin encode ====\n");
     LLVM_DEBUG(MI.dump());
@@ -89,7 +88,7 @@ unsigned P2MCCodeEmitter::getJumpTargetOpValue(const MCInst &MI, unsigned OpNo, 
 
     assert(MO.isExpr() && "getJumpTargetOpValue expects only expressions");
 
-    LLVM_DEBUG(errs() << "--- creating fixup for jump operand");
+    LLVM_DEBUG(errs() << "--- creating fixup for jump operand\n");
 
     const MCExpr *Expr = MO.getExpr();
     Fixups.push_back(MCFixup::create(0, Expr, MCFixupKind(P2::fixup_P2_PC20)));
@@ -100,8 +99,25 @@ unsigned P2MCCodeEmitter::encodeCallTarget(const MCInst &MI, unsigned OpNo, Smal
                                             const MCSubtargetInfo &STI) const {
     const MCOperand &MO = MI.getOperand(OpNo);
 
+    LLVM_DEBUG(errs() << "--- encode call target for operand: ");
+    LLVM_DEBUG(MO.dump());
+
     if (MO.isExpr()) {
-        MCFixupKind FixupKind = static_cast<MCFixupKind>(P2::fixup_P2_20);
+        LLVM_DEBUG(errs() << "call target for operand is an expression of kind: ");
+        LLVM_DEBUG(errs() << (unsigned)MO.getExpr()->getKind() << "\n");
+        MCFixupKind FixupKind;
+        const MCSymbolRefExpr* expr = static_cast<const MCSymbolRefExpr*>(MO.getExpr());
+
+        LLVM_DEBUG(expr->dump());
+
+        if (expr->getSymbol().isExternal()) {
+            LLVM_DEBUG(errs() << "creating COG fixup\n");
+            FixupKind = static_cast<MCFixupKind>(P2::fixup_P2_COG9);
+        } else {
+            LLVM_DEBUG(errs() << "creating normal fixup\n");
+            FixupKind = static_cast<MCFixupKind>(P2::fixup_P2_20);
+        }
+
         Fixups.push_back(MCFixup::create(0, MO.getExpr(), FixupKind, MI.getLoc()));
         return 0;
     }
@@ -134,6 +150,7 @@ unsigned P2MCCodeEmitter::getExprOpValue(const MCInst &MI, const MCExpr *Expr, S
     if (Kind == MCExpr::SymbolRef) {
         LLVM_DEBUG(errs() << " --- expression is symbol ref\n");
         LLVM_DEBUG(MI.dump());
+        LLVM_DEBUG(Expr->dump());
         MCFixupKind FixupKind = static_cast<MCFixupKind>(P2::fixup_P2_AUG20);
         Fixups.push_back(MCFixup::create(0, Expr, FixupKind, MI.getLoc()));
         return 0;
@@ -143,6 +160,9 @@ unsigned P2MCCodeEmitter::getExprOpValue(const MCInst &MI, const MCExpr *Expr, S
         llvm_unreachable("no implementation for target expressions!");
         return 0;
     }
+
+    llvm_unreachable("unhandled expression operand!");
+
     return 0;
 }
 
@@ -172,7 +192,7 @@ unsigned P2MCCodeEmitter::getMachineOpValue(const MCInst &MI, const MCOperand &M
 /// If the offset operand requires relocation, record the relocation.
 unsigned P2MCCodeEmitter::getMemEncoding(const MCInst &MI, unsigned OpNo, SmallVectorImpl<MCFixup> &Fixups,
                                             const MCSubtargetInfo &STI) const {
-    //LLVM_DEBUG(errs()<<"get mem encoding\n");
+
     llvm_unreachable("getMemEncoding not implemented");
     // TODO
     assert(MI.getOperand(OpNo).isReg());

@@ -58,13 +58,13 @@ void P2AsmPrinter::printOperand(const MachineInstr *MI, unsigned OpNo, raw_ostre
             O << "#" << MO.getImm();
             break;
         case MachineOperand::MO_GlobalAddress:
-            O << "$" << getSymbol(MO.getGlobal());
+            O << "@" << getSymbol(MO.getGlobal());
             break;
         case MachineOperand::MO_ExternalSymbol:
             O << "$" << *GetExternalSymbolSymbol(MO.getSymbolName());
             break;
         case MachineOperand::MO_MachineBasicBlock:
-            O << "$" << *MO.getMBB()->getSymbol();
+            O << "%" << *MO.getMBB()->getSymbol();
             break;
         default:
             llvm_unreachable("asm printer operand not implemented yet!");

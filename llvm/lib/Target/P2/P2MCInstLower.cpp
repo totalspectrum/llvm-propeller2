@@ -46,6 +46,7 @@ MCOperand P2MCInstLower::LowerSymbolOperand(const MachineOperand &MO,
     switch (MOTy) {
         case MachineOperand::MO_GlobalAddress:
             Symbol = AsmPrinter.getSymbol(MO.getGlobal());
+            Symbol->setExternal(false);
             Offset += MO.getOffset();
         break;
 
@@ -63,7 +64,12 @@ MCOperand P2MCInstLower::LowerSymbolOperand(const MachineOperand &MO,
         break;
 
         case MachineOperand::MO_ExternalSymbol:
+            // for now, assume all external symbols are libcalls. Any actual functions get treated as global addresses.
+            // I don't know if this will break something down the line. So when getting the call target,
+            // check if the symbol is external and if it is, encode the call target with a different fixup
+            LLVM_DEBUG(errs() << "external symbol: " << MO.getSymbolName() << "\n");
             Symbol = AsmPrinter.GetExternalSymbolSymbol(MO.getSymbolName());
+            Symbol->setExternal(true);
         break;
 
         default:
@@ -81,7 +87,11 @@ MCOperand P2MCInstLower::LowerSymbolOperand(const MachineOperand &MO,
     // if (TargetKind != Cpu0MCExpr::CEK_None)
     //     Expr = Cpu0MCExpr::create(TargetKind, Expr, *Ctx);
 
-    return MCOperand::createExpr(Expr);
+    MCOperand mco = MCOperand::createExpr(Expr);
+    LLVM_DEBUG(mco.dump());
+    LLVM_DEBUG(errs() << "... is external: " << Symbol->isExternal() << "\n");
+
+    return mco;
 }
 
 MCOperand P2MCInstLower::lowerOperand(const MachineOperand& MO, unsigned offset) const {
@@ -97,6 +107,8 @@ MCOperand P2MCInstLower::lowerOperand(const MachineOperand& MO, unsigned offset)
         case MachineOperand::MO_BlockAddress:
         case MachineOperand::MO_MachineBasicBlock:
         case MachineOperand::MO_ExternalSymbol:
+            LLVM_DEBUG(errs() << "mcinst lower, MO: "; MO.dump());
+            LLVM_DEBUG(errs() << "MO type: " << (int)MOTy << "\n");
             return LowerSymbolOperand(MO, MOTy, offset);
 
         case MachineOperand::MO_Register:

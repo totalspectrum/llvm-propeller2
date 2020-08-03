@@ -40,6 +40,7 @@ static unsigned adjustFixupValue(const MCFixup &Fixup, uint64_t Value, MCContext
         case P2::fixup_P2_PC32:
         case P2::fixup_P2_20:
         case P2::fixup_P2_AUG20:
+        case P2::fixup_P2_COG9:
             break;
         case P2::fixup_P2_PC20:
             Value -= 4; // a relative jump automatically includes the next instruction, so reduce the jump by 1 instruction (4 bytes)
@@ -99,7 +100,8 @@ const MCFixupKindInfo &P2AsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
         { "fixup_P2_PC32",      0,      32,   MCFixupKindInfo::FKF_IsPCRel},
         { "fixup_P2_20",        0,      20,   0},
         { "fixup_P2_PC20",      0,      20,   MCFixupKindInfo::FKF_IsPCRel},
-        { "fixup_P2_AUG20",     0,      20,   0}
+        { "fixup_P2_AUG20",     0,      20,   0},
+        { "fixup_P2_COG9",      0,      9,    0}
     };
 
     if (Kind < FirstTargetFixupKind)

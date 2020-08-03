@@ -2,6 +2,8 @@
 
 The goal of this project is to write an LLVM backend to generate code for the Propeller 2 microcontroller. Need to do the following things from a high level (in no particular order)
 
+Aside: This entire wiki is mostly stream of consciousness writing, so there might be contradictions. It's definitely not a clean document.
+
 1. ~~figure out how to add a new target machine in the LLVM environment~~
     - https://llvm.org/docs/WritingAnLLVMBackend.html#preliminaries seems to have some starting points
 1. ~~define a register format to use the COG memory register space~~ (see below)
@@ -137,3 +139,5 @@ There are a few things that intersect between the two Libraries (such as I/O FIL
 - Jump tables don't work. Make sure to compile with -fno-jump-tables or else switch statements won't work.
 - There's an issue somewhere with relocating symbols stored in .rodata (i.e if you try to do something like `struct_t a = {a_global_value}`), `a_global_value` won't get re-located correctly by the linker and the resulting code doesn't work. workaround is to explicitly set the value in a to `a_global_value`, i.e. `a.val = a_global_value`.
 - mod operator gets lowered to multiplication/division/subtraction, which seems to sometimes not return the correct value. For instance, if writing a printf implementation, and we want to get the character for a given digit, we might do something like `"0123456789abcdef"[n % base]`. `n % base` seems to have some high bits set to 1 (seemingly random). I believe this is a result of how multiplication is done and the issue is the representation of the mul instruction in the backend. to be explored more.
+- likely related to above, don't have a way to distinguish between mul and qmul uses. should use mul if both operands are i16 zero-extended to i32, qmul otherwise. Probably some llvm pattern could be used, because there's no way to know (at compile time) if a register will have a zero-extended i16 other than very specific cases (such as using the result of a i16 zextload).
+- something isn't correct with how functions are added to section (or how sections are referenced by the linker) cause trying to run with gc-sections removes all sections except main

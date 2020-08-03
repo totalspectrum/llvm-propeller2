@@ -1,5 +1,5 @@
 /*
-  Test the C standard library printf
+  Test a simple version of printf.
 
   compilation:
     make

@@ -60,6 +60,9 @@ unsigned P2ELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Target, 
     case P2::fixup_P2_AUG20:
         Type = ELF::R_P2_AUG20;
         break;
+    case P2::fixup_P2_COG9:
+        Type = ELF::R_P2_COG9;
+        break;
     }
 
     return Type;

@@ -3,14 +3,20 @@
 
 #include "propeller2.h"
 
+__attribute__ ((section ("COG"))) void _unreachable();
+__attribute__ ((section ("COG"))) void _start();
+__attribute__ ((section ("COG"))) int __sdiv(int a, int b);
+__attribute__ ((section ("COG"))) int __srem(int a, int b);
+
 void _entry() {
-    // basic entry code to jump to our resuable startup code.
-    // we inline this function, and it will get overwritten later by hub params (clkfreq, clkmode, etc)
-    // jump relative to address 0x100. -4 because of how jmp instruction works
-    // the linker will place _start() at address 0x100
-    asm("jmp #252");
+    // basic entry code to jump to our resuable startup code. we do this by restarting cog 0, copying in
+    // the code in the COG section (our reusable startup code). The linker will place _start() at address 0x100
+
+    // this function will get overwritten later by hub params (clkfreq, clkmode, etc)
+    asm("coginit #0, #0x100");
 }
 
+// I eventually want to figure out how to do labels in the assembly parser so that I don't need to pre-compute
 void _start() {
     asm("cogid $r0\n"           // get the current cog ID
         "tjz $r0, #5\n"         // if cog 0, jump to the special cog0 startup code.
@@ -26,4 +32,34 @@ void _start() {
         "augs #2\n"
         "mov $r0, #0\n"         // r0 = 0x400
         "jmp $r0");             // jump to the start of our program (0x400)
+}
+
+// a give-up function if we have some fatal error.
+void _unreachable() {
+    while(1);
+}
+
+int __sdiv(int a, int b) {
+    // write this partially as a normal C function for now, optimize with assembly later
+    // full assembly optimization will require adding conditional statement parsing.
+    // the alternative until we get there is to pre-compile asm functions with fast spin
+    // and link the binary. Otherwise, we are using up cycles pushing and popping registers
+    // to and from the stack
+    int result_neg = (a ^ b) >> 31;
+
+    // faster than using absolute function
+    asm("abs %0, %1" : "=r"(a) : "r"(a));
+    asm("abs %0, %1" : "=r"(b) : "r"(b));
+
+    int res = (unsigned int)a/(unsigned int)b;
+
+    if (result_neg) return -res;
+
+    return res;
+}
+
+// TODO: implement this function
+int __srem(int a, int b) {
+    _unreachable();
+    return 0;
 }

@@ -1,4 +1,6 @@
 ENTRY(_entry)
+
+
 SECTIONS {
     . = 0x00000;
     .text : {
@@ -6,8 +8,9 @@ SECTIONS {
     }
 
     . = 0x00100;
-    .text : {
-        *(.text._start);
+    .cog : {
+        _start
+        *(COG);
     }
 
     . = 0x00400;
@@ -27,4 +30,6 @@ SECTIONS {
     .bss : {
         *(.bss*);
     }
+
+    _end = . ;
 }
