@@ -144,11 +144,11 @@ let Constraints = "$src1 = $d" in {
     def XORrr   : P2InstCZIDS<0b0101011, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$src1, P2GPR:$s), "xor $d, $s", [(set P2GPR:$d, (xor P2GPR:$src1, P2GPR:$s))]>;
     def XORri   : P2InstCZIDS<0b0101011, 0b001, always, (outs P2GPR:$d), (ins P2GPR:$src1, s9imm:$s), "xor $d, #$s", [(set P2GPR:$d, (xor P2GPR:$src1, imm9:$s))]>;
 
-    def MULrr   : P2InstZIDS<0b10100000, 0b00, always, (outs P2GPR:$d), (ins P2GPR:$src1, P2GPR:$s), "mul $d, $s", [(set P2GPR:$d, (mul P2GPR:$src1, P2GPR:$s))]>;
-    def MULri   : P2InstZIDS<0b10100000, 0b01, always, (outs P2GPR:$d), (ins P2GPR:$src1, s9imm:$s), "mul $d, #$s", [(set P2GPR:$d, (mul P2GPR:$src1, imm9:$s))]>;
+    def MULrr   : P2InstZIDS<0b10100000, 0b00, always, (outs P2GPR:$d), (ins P2GPR:$src1, P2GPR:$s), "mul $d, $s", []>;
+    def MULri   : P2InstZIDS<0b10100000, 0b01, always, (outs P2GPR:$d), (ins P2GPR:$src1, s9imm:$s), "mul $d, #$s", []>;
 
-    def MULSrr   : P2InstZIDS<0b10100001, 0b00, always, (outs P2GPR:$d), (ins P2GPR:$src1, P2GPR:$s), "mul $d, $s", []>;
-    def MULSri   : P2InstZIDS<0b10100001, 0b01, always, (outs P2GPR:$d), (ins P2GPR:$src1, s9imm:$s), "mul $d, #$s", []>;
+    def MULSrr   : P2InstZIDS<0b10100001, 0b00, always, (outs P2GPR:$d), (ins P2GPR:$src1, P2GPR:$s), "muls $d, $s", []>;
+    def MULSri   : P2InstZIDS<0b10100001, 0b01, always, (outs P2GPR:$d), (ins P2GPR:$src1, s9imm:$s), "muls $d, #$s", []>;
 
     def SIGNXrr : P2InstCZIDS<0b0111011, 0b000, always, (outs P2GPR:$d), (ins P2GPR:$src1, P2GPR:$s), "signx $d, $s", []>;
     def SIGNXri : P2InstCZIDS<0b0111011, 0b001, always, (outs P2GPR:$d), (ins P2GPR:$src1, s9imm:$s), "signx $d, #$s", []>;

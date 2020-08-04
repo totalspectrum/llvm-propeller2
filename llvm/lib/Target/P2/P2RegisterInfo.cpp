@@ -64,7 +64,7 @@ void P2RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int SPA
     DebugLoc dl = MI.getDebugLoc();
     MachineFunction &MF = *MI.getParent()->getParent();
     MachineFrameInfo &MFI = MF.getFrameInfo();
-    P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
+    //P2FunctionInfo *P2FI = MF.getInfo<P2FunctionInfo>();
     const P2TargetMachine &TM = (const P2TargetMachine &)MF.getTarget();
     const TargetInstrInfo &inst_info = *TM.getInstrInfo();
     const TargetFrameLowering *TFI = TM.getFrameLowering();

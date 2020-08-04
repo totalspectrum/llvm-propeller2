@@ -116,22 +116,22 @@ int main() {
     // // led_mb_t led3 = {58, 20000000/3, (unsigned int*)blink3_stack};
     // // led_mb_t led4 = {59, 20000000/4, (unsigned int*)blink4_stack};
 
-    // // See wiki for why I'm doing things this way
-    // led_mb_t led1 = {56, _CLOCKFREQ, 0};
-    // led_mb_t led2 = {57, _CLOCKFREQ/2, 0};
-    // led_mb_t led3 = {58, _CLOCKFREQ/3, 0};
-    // led_mb_t led4 = {59, _CLOCKFREQ/4, 0};
+    // See wiki for why I'm doing things this way
+    led_mb_t led1 = {56, _CLOCKFREQ, 0};
+    led_mb_t led2 = {57, _CLOCKFREQ/2, 0};
+    led_mb_t led3 = {58, _CLOCKFREQ/3, 0};
+    led_mb_t led4 = {59, _CLOCKFREQ/4, 0};
 
-    // led1.stack = (unsigned int*)blink1_stack;
-    // led2.stack = (unsigned int*)blink2_stack;
-    // led3.stack = (unsigned int*)blink3_stack;
-    // led4.stack = (unsigned int*)blink4_stack;
+    led1.stack = (unsigned int*)blink1_stack;
+    led2.stack = (unsigned int*)blink2_stack;
+    led3.stack = (unsigned int*)blink3_stack;
+    led4.stack = (unsigned int*)blink4_stack;
 
-    // start_blinks(&led1, &led2, &led3, &led4, 0);
+    start_blinks(&led1, &led2, &led3, &led4, 0);
 
-    // int x = sum(5, 10, 20, -1, 34, -24);
-    // uart_int(x, 10);
-    // uart_str("\r\n");
+    int x = sum(5, 10, 20, -1, 34, -24);
+    uart_int(x, 10);
+    uart_str("\r\n");
 
     uart_int(125, 10);
 

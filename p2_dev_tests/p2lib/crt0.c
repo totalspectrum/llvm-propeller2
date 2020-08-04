@@ -16,7 +16,9 @@ void _entry() {
     asm("coginit #0, #0x100");
 }
 
-// I eventually want to figure out how to do labels in the assembly parser so that I don't need to pre-compute
+// I eventually want to figure out how to do labels in the assembly parser so that I don't need to pre-compute jump offsets
+// can also probably re-write this to always run the not-cog 0 version of the startup and do the cog 0 startup stuff in
+// _entry()
 void _start() {
     asm("cogid $r0\n"           // get the current cog ID
         "tjz $r0, #5\n"         // if cog 0, jump to the special cog0 startup code.
@@ -28,7 +30,7 @@ void _start() {
         "jmp $r1\n"             //  jump to the cog function
 
         "augs #1\n"
-        "mov $ptra, #0\n"       // cog0 startup: start the stack at 0x200 to reserve room for startup code/global things stored at the start of memory
+        "mov $ptra, #0x100\n"   // cog0 startup: start the stack at 0x300 to reserve room for startup code/global things stored at the start of memory
         "augs #2\n"
         "mov $r0, #0\n"         // r0 = 0x400
         "jmp $r0");             // jump to the start of our program (0x400)
@@ -58,8 +60,18 @@ int __sdiv(int a, int b) {
     return res;
 }
 
-// TODO: implement this function
 int __srem(int a, int b) {
-    _unreachable();
-    return 0;
+    // https://llvm.org/docs/LangRef.html#srem-instruction
+    // per LLVM instruction set, srem return should have the same sign as the first operand, a
+    int result_neg = a >> 31;
+
+    // faster than using absolute function
+    asm("abs %0, %1" : "=r"(a) : "r"(a));
+    asm("abs %0, %1" : "=r"(b) : "r"(b));
+
+    int res = (unsigned int)a%(unsigned int)b;
+
+    if (result_neg) return -res;
+
+    return res;
 }

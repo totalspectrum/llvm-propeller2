@@ -71,7 +71,7 @@ PUTL(ULONG u, int base, int width, int fill_char)
   const char *chars = "0123456789abcdef";
 
   do {
-    *t++ = chars[(u % base)&0xf];
+    *t++ = chars[(u % base)];
     u /= base;
     width--;
   } while (u > 0);
@@ -152,7 +152,7 @@ _doprnt( const char *fmt, va_list args )
    return outbytes;
 }
 
-int printf(const char *fmt, ...)
+int light_printf(const char *fmt, ...)
 {
     va_list args;
     int r;

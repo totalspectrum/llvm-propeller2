@@ -14,7 +14,7 @@
 #define wxpin(pin, r) asm("wxpin %0, %1" : : "r"(pin), "r"(r))
 #define wypin(pin, r) asm("wypin %0, %1" : : "r"(pin), "r"(r))
 
-#define _clkfreq (*((int*)0x20)) // writing to 0x14 fucks something up. for now put it in 0x20. probably something in the loader
+#define _clkfreq (*((int*)0x14))
 #define _clkmode (*((int*)0x18))
 #define _baudrate (*((int*)0x1c))
 

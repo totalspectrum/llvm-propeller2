@@ -1,5 +1,5 @@
 /*
-  Test libcalls
+  test libcalls and more math
 
   compilation:
     make
@@ -22,28 +22,32 @@ int main() {
 
     volatile int i = 10;
     volatile int j = 5;
-    printf("test %d\n", 1); // don't have a puts yet, so need to always pass a parameter so the optimizer doesn't replace
-                            // this is a puts call
+    printf("test 1\n");
     printf("%d/%d = %d\n", i, j, i/j);
 
     i = -10;
     j = 5;
-    printf("test %d\n", 2);
+    printf("test 2\n");
     printf("%d/%d = %d\n", i, j, i/j);
 
     i = 10;
     j = -5;
-    printf("test %d\n", 3);
+    printf("test 3\n");
     printf("%d/%d = %d\n", i, j, i/j);
 
     i = -10;
     j = -5;
-    printf("test %d\n", 4);
+    printf("test 4\n");
     printf("%d/%d = %d\n", i, j, i/j);
 
     i = -10;
     j = 5;
-    printf("test %d\n", 5);
+    printf("test 5\n");
+    printf("%d*%d = %d\n", i, j, i*j);
+
+    i = -10;
+    j = -5;
+    printf("test 6\n");
     printf("%d*%d = %d\n", i, j, i*j);
 
     while(1);

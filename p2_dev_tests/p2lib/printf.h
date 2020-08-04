@@ -23,8 +23,8 @@
  * +--------------------------------------------------------------------
  */
 
-#ifndef _STDIO_H
-#define _STDIO_H
+#ifndef _PRINTF_H
+#define _PRINTF_H
 
 #if defined(__cplusplus)
 extern "C" {
@@ -32,7 +32,9 @@ extern "C" {
 
 #include <sys/va_list.h>
 
-int printf(const char *fmt, ...);
+#define printf light_printf
+
+int light_printf(const char *fmt, ...);
 
 #if defined(__cplusplus)
 }

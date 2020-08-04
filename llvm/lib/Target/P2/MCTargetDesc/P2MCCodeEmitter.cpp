@@ -60,9 +60,6 @@ void P2MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS, Small
     unsigned op_code = MI.getOpcode();
 
     const MCInstrDesc &Desc = MCII.get(op_code);
-    uint64_t TSFlags = Desc.TSFlags;
-    // uint64_t inst_type = (TSFlags >> 4) & 31; // 5 bits
-    // inst type might not be necessary yet.
 
     LLVM_DEBUG(errs() << "emitting instruction binary: ");
     for (int i = 0; i < 32; i++) {

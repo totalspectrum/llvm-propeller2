@@ -98,8 +98,9 @@ P2TargetLowering::P2TargetLowering(const P2TargetMachine &TM) : TargetLowering(T
     setOperationAction(ISD::SRA_PARTS, MVT::i32, Expand);
     setOperationAction(ISD::SRL_PARTS, MVT::i32, Expand);
 
-    setOperationAction(ISD::SDIV, MVT::i32, LibCall);
-    setOperationAction(ISD::SREM, MVT::i32, LibCall);
+    // can expand mul instead of a libcall and it will just become mullo/hi, which we've already created
+    // a lowering for
+    setOperationAction(ISD::MUL, MVT::i32, Expand);
 
     for (MVT VT : MVT::integer_valuetypes()) {
         setOperationAction(ISD::ATOMIC_SWAP, VT, Expand);
@@ -115,6 +116,10 @@ P2TargetLowering::P2TargetLowering(const P2TargetMachine &TM) : TargetLowering(T
     setOperationAction(ISD::BR_JT, MVT::Other, Expand);
     setOperationAction(ISD::JumpTable, MVT::i32, Custom);
     setOperationAction(ISD::BSWAP, MVT::i32, Expand);
+
+    // setup all the functions that will be libcalls.
+    setOperationAction(ISD::SDIV, MVT::i32, LibCall);
+    setOperationAction(ISD::SREM, MVT::i32, LibCall);
 
     setLibcallName(RTLIB::SDIV_I32, "__sdiv");
     setLibcallName(RTLIB::SREM_I32, "__srem");

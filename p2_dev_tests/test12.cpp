@@ -20,13 +20,13 @@ int main() {
     clkset(_SETFREQ, _CLOCKFREQ);
     uart_clock_per_bits = uart_init(RX_PIN, TX_PIN, 230400);
 
-    volatile int i = 0;
+    volatile int i = 0x7fffffff-10;
     while(1) {
         printf("i as an int = %d, ", i);
         printf("i as an uint = %u, ", i);
         printf("i as a hex = %x\n", i);
         waitx(_CLOCKFREQ/10);
-        i--;
+        i++;
     }
 
     while(1);

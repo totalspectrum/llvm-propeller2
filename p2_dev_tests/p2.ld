@@ -1,6 +1,5 @@
 ENTRY(_entry)
 
-
 SECTIONS {
     . = 0x00000;
     .text : {

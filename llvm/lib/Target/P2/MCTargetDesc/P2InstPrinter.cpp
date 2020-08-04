@@ -27,25 +27,6 @@ using namespace llvm;
 
 #include "P2GenAsmWriter.inc"
 
-// const char* P2InstPrinter::cond_lut[16] = {
-//     "_ret_",
-//     "if_nc_and_nz",
-//     "if_nc_and_z",
-//     "if_nc",
-//     "if_c_and_nz",
-//     "if_nz",
-//     "if_c_ne_z",
-//     "if_nc_or_nz",
-//     "if_c_and_z",
-//     "if_c_eq_z",
-//     "if_z",
-//     "if_nc_or_z",
-//     "if_c",
-//     "if_c_or_nz",
-//     "if_c_or_z",
-//     ""
-// };
-
 void P2InstPrinter::printRegName(raw_ostream &OS, unsigned RegNo) const {
     OS << StringRef(getRegisterName(RegNo)).lower();
 }
@@ -53,12 +34,6 @@ void P2InstPrinter::printRegName(raw_ostream &OS, unsigned RegNo) const {
 void P2InstPrinter::printInst(const MCInst *MI, uint64_t Address,
                                 StringRef Annot, const MCSubtargetInfo &STI,
                                 raw_ostream &O) {
-    uint64_t flags = MI->getFlags();
-    // uint64_t cond = flags & 0xf;
-    // if (cond == P2::ALWAYS) {
-    //     O << "\t"; // add a extra tab when we don't have a condition string
-    // }
-    // O << "\t" << cond_lut[cond];
     printInstruction(MI, Address, O);
     printAnnotation(O, Annot);
 }

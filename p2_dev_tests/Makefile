@@ -3,7 +3,7 @@ CC = $(LLVM)/bin/clang
 LD = $(LLVM)/bin/ld.lld
 LOAD = loadp2
 
-TARGET = test13
+TARGET = test12
 OBJDIR = build
 
 CFLAGS = -Os -ffunction-sections -fdata-sections -fno-jump-tables --target=p2 -I./p2lib -I../p2-libc/include -D__propeller2__
